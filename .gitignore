@@ -11,7 +11,13 @@ Dockerfile.before-*
 TtsTest.java
 __pycache__/
 app-script.js
+app/.cxx/
 app/build/
+app/src/main/assets/*.backup
+app/src/main/assets/*.current-backup
+app/src/main/assets/*.full-backup
+app/src/main/assets/*.latest-debug
+app/src/main/java/**/*.old
 backend.log
 backend.py.before-*
 backend.py.upload-only-backup
