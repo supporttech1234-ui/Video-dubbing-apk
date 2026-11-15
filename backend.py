@@ -191,6 +191,41 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        if self.path.startswith("/output/"):
+            filename = os.path.basename(self.path[len("/output/"):])
+            file_path = os.path.join(UPLOAD_DIR, filename)
+
+            if not os.path.isfile(file_path):
+                self.send_json({
+                    "error": "Output file not found"
+                }, 404)
+                return
+
+            content_type = "video/mp4"
+            if filename.endswith(".mp3"):
+                content_type = "audio/mpeg"
+            elif filename.endswith(".wav"):
+                content_type = "audio/wav"
+            elif filename.endswith(".txt"):
+                content_type = "text/plain; charset=utf-8"
+
+            file_size = os.path.getsize(file_path)
+
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(file_size))
+            self.send_header("Content-Disposition", 'inline; filename="' + filename + '"')
+            self.end_headers()
+
+            with open(file_path, "rb") as f:
+                while True:
+                    chunk = f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+
+            return
+
         self.send_json({
             "error": "Not found"
         }, 404)
