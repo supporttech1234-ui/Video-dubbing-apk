@@ -1701,202 +1701,34 @@ function showComplete() {
 ========================= */
 
 function playDubbedMovie() {
-
-    alert(
-        "Dubbed movie playback will be connected after the online server processing is added."
-    );
-
-}
-
-
-/* =========================
-   SAVE
-========================= */
-
-function saveDubbedMovie() {
-
-    alert(
-        "Dubbed movie saving will be connected after the online server processing is added."
-    );
-
-}
-
-
-/* =========================
-   SETTINGS
-========================= */
-
-function openSettings() {
-
-    document
-        .getElementById("settingsOverlay")
-        .style.display = "block";
-
-}
-
-
-function closeSettings(event) {
-
-    if (
-        event &&
-        event.target !==
-        document.getElementById(
-            "settingsOverlay"
-        )
-    ) {
+    if (!window.dubbedVideoFile) {
+        alert("Dubbed video is not available.");
         return;
     }
 
-    document
-        .getElementById("settingsOverlay")
-        .style.display = "none";
+    const videoUrl =
+        API_BASE + "/output/" + encodeURIComponent(window.dubbedVideoFile);
 
+    window.open(videoUrl, "_blank");
 }
 
-function filterLanguages() {
-
-    const search = document
-        .getElementById("languageSearch")
-        .value
-        .toLowerCase();
-
-    const options = document
-        .querySelectorAll("#languageList .language-option");
-
-    options.forEach(function(option) {
-
-        const name = option
-            .innerText
-            .toLowerCase();
-
-        option.style.display =
-            name.includes(search)
-                ? "block"
-                : "none";
-
-    });
-}
-
-function toggleOriginalLanguage() {
-
-    const panel = document.getElementById("originalLanguagePanel");
-
-    panel.style.display =
-        panel.style.display === "block" ? "none" : "block";
-
-}
-
-function toggleDubLanguage() {
-
-    const panel = document.getElementById("dubLanguagePanel");
-
-    panel.style.display =
-        panel.style.display === "block" ? "none" : "block";
-
-}
-
-
-function selectLanguage(option) {
-
-    const options = document
-        .querySelectorAll("#languageList .language-option");
-
-    options.forEach(function(item) {
-        item.classList.remove("selected");
-    });
-
-    option.classList.add("selected");
-
-    document
-        .getElementById("originalLanguage")
-        .value = option.dataset.value;
-
-    document.getElementById("originalLanguageText").innerText =
-        option.querySelector(".language-name")
-            ? option.querySelector(".language-name").innerText
-            : option.innerText.trim();
-
-    document
-        .getElementById("languageSearch")
-        .value = "";
-
-    document
-        .getElementById("originalLanguagePanel")
-        .style.display = "none";
-
-}
-
-function filterDubLanguages() {
-
-    const search = document
-        .getElementById("dubLanguageSearch")
-        .value
-        .toLowerCase();
-
-    const options = document
-        .querySelectorAll("#dubLanguageList .language-option");
-
-    options.forEach(function(option) {
-
-        const name = option
-            .innerText
-            .toLowerCase();
-
-        option.style.display =
-            name.includes(search)
-                ? "block"
-                : "none";
-
-    });
-}
-
-function selectDubLanguage(option) {
-
-    const options = document
-        .querySelectorAll("#dubLanguageList .language-option");
-
-    options.forEach(function(item) {
-        item.classList.remove("selected");
-    });
-
-    option.classList.add("selected");
-
-    document
-        .getElementById("dubLanguage")
-        .value = option.dataset.value;
-
-    document
-        .getElementById("dubLanguageText")
-        .innerText = option.innerText;
-
-    document
-        .getElementById("dubLanguageSearch")
-        .value = "";
-
-    document
-        .getElementById("dubLanguagePanel")
-        .style.display = "none";
-
-}
-
-
-document.addEventListener("DOMContentLoaded", function() {
-
-    const originalFirst = document.querySelector("#languageList .language-option[data-value='auto']");
-
-    if (originalFirst) {
-        originalFirst.classList.add("selected");
-        document.getElementById("originalLanguage").value = "auto";
+function saveDubbedMovie() {
+    if (!window.dubbedVideoFile) {
+        alert("Dubbed video is not available.");
+        return;
     }
 
-    const dubFirst = document.querySelector("#dubLanguageList .language-option[data-value='en']");
+    const videoUrl =
+        API_BASE + "/output/" + encodeURIComponent(window.dubbedVideoFile);
 
-    if (dubFirst) {
-        dubFirst.classList.add("selected");
-        document.getElementById("dubLanguage").value = "en";
-    }
-
-});
+    const link = document.createElement("a");
+    link.href = videoUrl;
+    link.download = window.dubbedVideoFile;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 </script>
 
