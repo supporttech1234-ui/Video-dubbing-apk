@@ -240,6 +240,7 @@ class Handler(BaseHTTPRequestHandler):
         }, 404)
 
     def do_POST(self):
+        print("POST REQUEST:", self.path, flush=True)
 
         if self.path != "/dub":
             self.send_json({
