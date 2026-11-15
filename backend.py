@@ -26,7 +26,23 @@ else:
 WHISPER_BIN = os.path.join(BASE_DIR, "whisper.cpp/build/bin/whisper-cli")
 WHISPER_MODEL = os.path.join(BASE_DIR, "whisper.cpp/models/ggml-medium.bin")
 
+WHISPER_MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin"
+
+def ensure_whisper_model():
+    if os.path.exists(WHISPER_MODEL) and os.path.getsize(WHISPER_MODEL) > 1000000000:
+        print("WHISPER MODEL: already available", flush=True)
+        return
+
+    os.makedirs(os.path.dirname(WHISPER_MODEL), exist_ok=True)
+    print("WHISPER MODEL: downloading medium model...", flush=True)
+
+    import urllib.request
+    urllib.request.urlretrieve(WHISPER_MODEL_URL, WHISPER_MODEL)
+
+    print("WHISPER MODEL: download complete", flush=True)
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+ensure_whisper_model()
 
 
 
@@ -242,6 +258,89 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         print("POST REQUEST:", self.path, flush=True)
 
+        # WHISPER-ONLY AUDIO ENDPOINT
+        if self.path == "/transcribe":
+            content_length = int(self.headers.get("Content-Length", "0"))
+            if content_length <= 0:
+                self.send_json({"error": "Empty audio upload"}, 400)
+                return
+
+            marker = self.headers.get("Content-Type", "")
+            if "boundary=" not in marker:
+                self.send_json({"error": "Multipart boundary missing"}, 400)
+                return
+
+            boundary = marker.split("boundary=", 1)[-1].strip().strip('"').encode()
+            body = self.rfile.read(content_length)
+            audio_data = None
+
+            for part in body.split(b"--" + boundary):
+                if b'name="audio"' in part:
+                    header_end = part.find(b"\r\n\r\n")
+                    if header_end != -1:
+                        audio_data = part[header_end + 4:].rstrip(b"\r\n-")
+                        break
+
+            if not audio_data:
+                self.send_json({"error": "Audio field not found; expected field name audio"}, 400)
+                return
+
+            audio_name = f"audio_{uuid.uuid4().hex}.wav"
+            audio_path = os.path.join(UPLOAD_DIR, audio_name)
+            transcript_path = audio_path + ".txt"
+
+            with open(audio_path, "wb") as f:
+                f.write(audio_data)
+
+            try:
+                print("TRANSCRIPTION MODE: LOCAL WHISPER", flush=True)
+
+                whisper_cmd = [
+                    WHISPER_BIN, "-m", WHISPER_MODEL,
+                    "-f", audio_path, "-l", "ta",
+                    "-otxt", "-nt",
+                    "--prompt",
+                    "இது ஒரு தமிழ் திரைப்பட உரையாடல். கதாபாத்திரங்கள் தமிழில் பேசுகிறார்கள்."
+                ]
+
+                result = subprocess.run(
+                    whisper_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        "Whisper transcription failed: " + result.stdout[-2000:]
+                    )
+
+                if not os.path.exists(transcript_path):
+                    raise RuntimeError("Whisper transcript file was not created")
+
+                with open(transcript_path, "r", encoding="utf-8") as f:
+                    transcript = f.read().strip()
+
+                if not transcript:
+                    raise RuntimeError("Transcript is empty")
+
+                with open(transcript_path, "w", encoding="utf-8") as f:
+                    f.write(transcript)
+
+                self.send_json({
+                    "status": "transcribed",
+                    "transcript": transcript,
+                    "transcript_file": os.path.basename(transcript_path)
+                })
+            except Exception as e:
+                print("TRANSCRIPTION ERROR:", repr(e), flush=True)
+                self.send_json({
+                    "status": "error",
+                    "stage": "transcription",
+                    "error": str(e)
+                }, 500)
+            return
+
         if self.path != "/dub":
             self.send_json({
                 "error": "Not found"
@@ -292,11 +391,11 @@ class Handler(BaseHTTPRequestHandler):
 
         for part in parts:
             if b'name="video"' in part:
-                header_end = part.find(b"\r\n\r\n")
-                if header_end != -1:
-                    video_data = part[header_end + 4:]
-                    video_data = video_data.rstrip(b"\r\n-")
-                    break
+                    header_end = part.find(b"\r\n\r\n")
+                    if header_end != -1:
+                        video_data = part[header_end + 4:]
+                        video_data = video_data.rstrip(b"\r\n-")
+                        break
 
         if not video_data:
             self.send_json({

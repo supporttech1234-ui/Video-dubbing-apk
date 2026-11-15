@@ -581,7 +581,6 @@ function testNative() {
     }
 }
 
-<script>
 function testTamilTTS() {
     if (window.AndroidBridge && AndroidBridge.synthesizeTamil) {
         AndroidBridge.synthesizeTamil(
@@ -592,7 +591,6 @@ function testTamilTTS() {
         alert("Android TTS bridge not available");
     }
 }
-</script>
 </script>
 
 
@@ -988,6 +986,42 @@ function testTamilTTS() {
     </div>
 
 
+    <!-- TRANSLATION MODELS -->
+    <div class="online-box" style="margin-top:12px;">
+        <div class="online-title">📦 Translation Models</div>
+
+        <div style="font-size:13px;margin:8px 0;">
+            Download once. Models are stored on the phone.
+        </div>
+
+        <button
+            type="button"
+            onclick="downloadModelSet('indic_en', INDIC_EN_MODEL_FILES, INDIC_EN_BASE_URL)"
+            style="margin-top:8px;padding:10px 16px;border-radius:10px;">
+            🇮🇳 Tamil → English Model
+        </button>
+
+        <button
+            type="button"
+            onclick="downloadModelSet('en_indic', EN_INDIC_MODEL_FILES, EN_INDIC_BASE_URL)"
+            style="margin-top:8px;padding:10px 16px;border-radius:10px;">
+            🇬🇧 English → Tamil Model
+        </button>
+
+        <progress
+            id="modelDownloadProgress"
+            value="0"
+            max="100"
+            style="width:100%;margin-top:10px;">
+        </progress>
+
+        <div
+            id="modelDownloadPercent"
+            style="font-size:12px;margin-top:4px;">
+            0%
+        </div>
+    </div>
+
     <!-- START -->
 
     <button
@@ -1000,6 +1034,7 @@ function testTamilTTS() {
 
     <button
         class="start-button"
+        type="button"
         onclick="startDubbing()">
 
         ✨ START AI DUBBING
@@ -1323,94 +1358,69 @@ function selectOneVoice() {
 ========================= */
 
 async function startDubbing() {
-
     if (!selectedVideo) {
-
-        alert("Please select a video file.");
-
+        alert("Please select a video first.");
         return;
-
     }
 
-    document
-        .getElementById("videoScreen")
-        .style.display = "none";
+    const videoScreen =
+        document.getElementById("videoScreen");
 
-    document
-        .getElementById("progressScreen")
-        .style.display = "block";
+    if (videoScreen) {
+        videoScreen.style.display = "block";
+        videoScreen.style.width = "100%";
+        videoScreen.style.minHeight = "100vh";
+    }
 
-    document
-        .getElementById("completeBox")
-        .style.display = "none";
+    document.getElementById("completeBox").style.display = "none";
 
-    document
-        .getElementById("progressNumber")
-        .style.display = "block";
+    const progressScreen =
+        document.getElementById("progressScreen");
 
-    document
-        .querySelector(".progress-bar")
-        .style.display = "block";
+    if (progressScreen) {
+        progressScreen.style.display = "block";
+    }
 
-    document
-        .querySelector(".process-box")
-        .style.display = "block";
+    document.getElementById("processName").innerText =
+        "Preparing audio...";
 
-    document
-        .querySelector(".time-row")
-        .style.display = "flex";
+    document.getElementById("progressNumber").innerText =
+        "0%";
 
-    document
-        .getElementById("progressNumber")
-        .innerText = "0%";
+    document.getElementById("progressFill").style.width =
+        "0%";
 
-    document
-        .getElementById("progressFill")
-        .style.width = "0%";
+    console.log("Starting native audio extraction...");
 
-    document
-        .getElementById("processName")
-        .innerText = "Uploading movie...";
+    if (window.AndroidBridge &&
+        typeof AndroidBridge.uploadSelectedVideo === "function") {
 
-    startTime = Date.now();
+        AndroidBridge.uploadSelectedVideo();
 
-    startProgress();
-
-    try {
-
-        const formData = new FormData();
-
-        formData.append("video", selectedVideo);
-
-        const API_BASE = "https://video-dubbing-apk.onrender.com";
-
-        const response = await fetch(
-            API_BASE + "/dub",
-            {
-                method: "POST",
-                body: formData
-            }
+    } else {
+        nativeUploadError(
+            "AndroidBridge.uploadSelectedVideo() not available"
         );
+    }
+}
 
-        const result = await response.json();
+function nativeUploadComplete(responseText) {
+    try {
+        const result = JSON.parse(responseText);
 
-        if (!response.ok || result.status === "error") {
-            throw new Error(
-                result.error || "Dubbing failed"
-            );
+        if (
+            !result ||
+            result.status === "error" ||
+            result.error
+        ) {
+            throw new Error(result.error || "Dubbing failed");
         }
 
-        document
-            .getElementById("processName")
-            .innerText = "Dubbing complete";
+        stopProgress();
 
-        document
-            .getElementById("progressNumber")
-            .innerText = "100%";
-
-        document
-            .getElementById("progressFill")
-            .style.width = "100%";
+        document.getElementById("processName").innerText = "Dubbing complete";
+        document.getElementById("progressNumber").innerText = "100%";
+        document.getElementById("progressFill").style.width = "100%";
 
         console.log("DUBBING RESULT:", result);
 
@@ -1418,34 +1428,40 @@ async function startDubbing() {
             window.dubbedVideoFile = result.dubbed_video;
         }
 
-        document
-            .getElementById("completeBox")
-            .style.display = "block";
+        document.getElementById("completeBox").style.display = "block";
 
     } catch (error) {
-
-        console.error("DUBBING ERROR:", error);
-
-        document
-            .getElementById("processName")
-            .innerText = "Dubbing failed";
-
-        document
-            .getElementById("progressNumber")
-            .innerText = "ERROR";
-
-        alert(
-            "Dubbing failed: " + error.message
-        );
-
+        nativeUploadError(error.message);
     }
-
 }
 
+function nativeUploadError(message) {
+    stopProgress();
+
+    console.error("DUBBING ERROR:", message);
+
+    document.getElementById("processName").innerText = "Dubbing failed";
+    document.getElementById("progressNumber").innerText = "ERROR";
+
+    alert("Dubbing failed: " + message);
+}
 
 /* =========================
    PROGRESS
 ========================= */
+
+function setDubbingProgress(message, percent) {
+    document.getElementById("processName").innerText = message;
+    document.getElementById("progressNumber").innerText = percent + "%";
+    document.getElementById("progressFill").style.width = percent + "%";
+}
+
+function stopProgress() {
+    if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+    }
+}
 
 function startProgress() {
 
@@ -1884,6 +1900,152 @@ function selectDubLanguage(option) {
 }
 
 
+function modelDownloadProgress(percent) {
+    console.log("Model download:", percent + "%");
+
+    const progressEl = document.getElementById("modelDownloadProgress");
+    if (progressEl) {
+        progressEl.value = percent;
+    }
+
+    const textEl = document.getElementById("modelDownloadPercent");
+    if (textEl) {
+        textEl.innerText = percent + "%";
+    }
+}
+
+const INDIC_EN_MODEL_FILES = [
+    "encoder_model.onnx",
+    "encoder_model.onnx.data",
+    "decoder_model.onnx",
+    "decoder_shared.onnx.data",
+    "decoder_with_past_model.onnx",
+    "tokenizer_src.json",
+    "tokenizer_tgt.json",
+    "tokenizer_meta.json",
+    "tokenizer_config.json",
+    "dict.SRC.json",
+    "dict.TGT.json",
+    "model.SRC",
+    "model.TGT",
+    "config.json",
+    "generation_config.json"
+];
+
+const EN_INDIC_MODEL_FILES = [
+    "encoder_model.onnx",
+    "decoder_model.onnx",
+    "decoder_shared.onnx.data",
+    "decoder_with_past_model.onnx",
+    "tokenizer_src.json",
+    "tokenizer_tgt.json",
+    "tokenizer_meta.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "dict.SRC.json",
+    "dict.TGT.json",
+    "model.SRC",
+    "model.TGT",
+    "config.json",
+    "generation_config.json"
+];
+
+const INDIC_EN_BASE_URL =
+    "https://huggingface.co/hari31416/indictrans2-indic-en-dist-200M-ONNX-q4f16/resolve/main/";
+
+const EN_INDIC_BASE_URL =
+    "https://huggingface.co/hari31416/indictrans2-en-indic-dist-200M-ONNX-q4f16/resolve/main/";
+
+function downloadModelFile(modelDir, fileName, baseUrl) {
+    if (typeof AndroidBridge === "undefined" ||
+        !AndroidBridge.downloadModel) {
+        console.error("AndroidBridge.downloadModel unavailable");
+        return;
+    }
+
+    const url = baseUrl + encodeURIComponent(fileName);
+
+    console.log("Downloading:", modelDir + "/" + fileName);
+
+    AndroidBridge.downloadModel(
+        url,
+        modelDir,
+        fileName
+    );
+}
+
+function downloadModelSet(modelDir, modelFiles, baseUrl, index = 0) {
+    if (typeof AndroidBridge === "undefined") {
+        console.error("AndroidBridge unavailable");
+        return;
+    }
+
+    if (index >= modelFiles.length) {
+        console.log("Model download set complete:", modelDir);
+        return;
+    }
+
+    const fileName = modelFiles[index];
+
+    if (
+        AndroidBridge.isModelDownloaded &&
+        AndroidBridge.isModelDownloaded(modelDir, fileName)
+    ) {
+        console.log("Already downloaded:", modelDir + "/" + fileName);
+        downloadModelSet(modelDir, modelFiles, baseUrl, index + 1);
+        return;
+    }
+
+    downloadModelFile(modelDir, fileName, baseUrl);
+}
+
+
+
+function modelDownloadComplete(modelDir, fileName) {
+    console.log("Model file complete:", modelDir + "/" + fileName);
+
+    let files;
+    let baseUrl;
+
+    if (modelDir === "indic_en") {
+        files = INDIC_EN_MODEL_FILES;
+        baseUrl = INDIC_EN_BASE_URL;
+    } else if (modelDir === "en_indic") {
+        files = EN_INDIC_MODEL_FILES;
+        baseUrl = EN_INDIC_BASE_URL;
+    } else {
+        console.error("Unknown model directory:", modelDir);
+        return;
+    }
+
+    const index = files.indexOf(fileName);
+
+    if (index === -1) {
+        console.error("Unknown model file:", fileName);
+        return;
+    }
+
+    downloadModelSet(modelDir, files, baseUrl, index + 1);
+}
+
+function checkTranslationModelStatus(direction = "indic_en") {
+    if (typeof AndroidBridge === "undefined") {
+        return false;
+    }
+
+    if (direction === "en_indic" &&
+        AndroidBridge.isEnglishIndicModelReady) {
+        return AndroidBridge.isEnglishIndicModelReady();
+    }
+
+    if (direction === "indic_en" &&
+        AndroidBridge.isIndicEnglishModelReady) {
+        return AndroidBridge.isIndicEnglishModelReady();
+    }
+
+    return false;
+}
+
 document.addEventListener("DOMContentLoaded", function() {
 
     const originalFirst = document.querySelector("#languageList .language-option[data-value='auto']");
@@ -1892,6 +2054,11 @@ document.addEventListener("DOMContentLoaded", function() {
         originalFirst.classList.add("selected");
         document.getElementById("originalLanguage").value = "auto";
     }
+
+    console.log(
+        "Translation model ready:",
+        checkTranslationModelStatus()
+    );
 
     const dubFirst = document.querySelector("#dubLanguageList .language-option[data-value='en']");
 
