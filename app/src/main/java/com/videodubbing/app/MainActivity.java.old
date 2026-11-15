@@ -1,0 +1,338 @@
+package com.videodubbing.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.OpenableColumns;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Toast;
+
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
+
+import java.io.IOException;
+
+public class MainActivity extends Activity {
+
+    private WebView webView;
+
+    private static final int MEDIA_PICKER_REQUEST = 2001;
+
+    private Uri selectedMediaUri;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        webView = new WebView(this);
+
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        settings.setSupportMultipleWindows(false);
+
+        webView.setWebViewClient(new WebViewClient());
+
+        webView.addJavascriptInterface(
+                new NativeBridge(),
+                "AndroidBridge"
+        );
+
+        webView.setWebChromeClient(new WebChromeClient());
+
+        setContentView(webView);
+
+        webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    private void openMediaPicker() {
+
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+
+        String[] mimeTypes = {
+                "video/*",
+                "audio/*"
+        };
+
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+
+        try {
+            startActivityForResult(
+                    intent,
+                    MEDIA_PICKER_REQUEST
+            );
+        } catch (Exception e) {
+            Toast.makeText(
+                    this,
+                    "Cannot open media picker",
+                    Toast.LENGTH_SHORT
+            ).show();
+        }
+    }
+
+    private String getFileName(Uri uri) {
+
+        String name = null;
+
+        Cursor cursor = null;
+
+        try {
+
+            cursor = getContentResolver().query(
+                    uri,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+
+            if (cursor != null &&
+                    cursor.moveToFirst()) {
+
+                int index =
+                        cursor.getColumnIndex(
+                                OpenableColumns.DISPLAY_NAME
+                        );
+
+                if (index >= 0) {
+                    name = cursor.getString(index);
+                }
+            }
+
+        } catch (Exception ignored) {
+
+        } finally {
+
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        if (name == null) {
+            name = uri.getLastPathSegment();
+        }
+
+        return name != null ? name : "Selected media";
+    }
+
+    private String inspectMedia(Uri uri) {
+
+        MediaExtractor extractor =
+                new MediaExtractor();
+
+        try {
+
+            extractor.setDataSource(
+                    this,
+                    uri,
+                    null
+            );
+
+            int trackCount =
+                    extractor.getTrackCount();
+
+            StringBuilder result =
+                    new StringBuilder();
+
+            result.append(
+                    "Media opened successfully\n"
+            );
+
+            result.append(
+                    "Tracks: "
+            ).append(trackCount).append("\n");
+
+            for (int i = 0;
+                    i < trackCount;
+                    i++) {
+
+                MediaFormat format =
+                        extractor.getTrackFormat(i);
+
+                String mime =
+                        format.getString(
+                                MediaFormat.KEY_MIME
+                        );
+
+                result.append(
+                        "Track "
+                ).append(i)
+                 .append(": ")
+                 .append(mime)
+                 .append("\n");
+
+                if (format.containsKey(
+                        MediaFormat.KEY_DURATION)) {
+
+                    long duration =
+                            format.getLong(
+                                    MediaFormat.KEY_DURATION
+                            );
+
+                    result.append(
+                            "Duration: "
+                    ).append(
+                            duration / 1000000L
+                    ).append(
+                            " sec\n"
+                    );
+                }
+            }
+
+            return result.toString();
+
+        } catch (Exception e) {
+
+            return "MEDIA_ERROR: "
+                    + e.getClass().getSimpleName()
+                    + ": "
+                    + e.getMessage();
+
+        } finally {
+
+            extractor.release();
+        }
+    }
+
+    private void sendToJavaScript(
+            String function,
+            String value) {
+
+        if (webView == null) {
+            return;
+        }
+
+        String escaped =
+                value
+                        .replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r");
+
+        webView.post(() ->
+                webView.evaluateJavascript(
+                        function
+                                + "(\""
+                                + escaped
+                                + "\")",
+                        null
+                )
+        );
+    }
+
+    private class NativeBridge {
+
+        @JavascriptInterface
+        public void openMediaPicker() {
+
+            runOnUiThread(() ->
+                    openMediaPicker()
+            );
+        }
+
+        @JavascriptInterface
+        public String getSelectedMediaName() {
+
+            if (selectedMediaUri == null) {
+                return "";
+            }
+
+            return getFileName(
+                    selectedMediaUri
+            );
+        }
+
+        @JavascriptInterface
+        public String inspectSelectedMedia() {
+
+            if (selectedMediaUri == null) {
+                return "No media selected";
+            }
+
+            return inspectMedia(
+                    selectedMediaUri
+            );
+        }
+
+        @JavascriptInterface
+        public boolean hasSelectedMedia() {
+
+            return selectedMediaUri != null;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(
+            int requestCode,
+            int resultCode,
+            Intent data) {
+
+        super.onActivityResult(
+                requestCode,
+                resultCode,
+                data
+        );
+
+        if (requestCode != MEDIA_PICKER_REQUEST) {
+            return;
+        }
+
+        if (resultCode != RESULT_OK ||
+                data == null ||
+                data.getData() == null) {
+
+            return;
+        }
+
+        selectedMediaUri =
+                data.getData();
+
+        try {
+
+            getContentResolver()
+                    .takePersistableUriPermission(
+                            selectedMediaUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    );
+
+        } catch (Exception ignored) {
+
+        }
+
+        String name =
+                getFileName(
+                        selectedMediaUri
+                );
+
+        sendToJavaScript(
+                "nativeMediaSelected",
+                name
+        );
+    }
+
+    @Override
+    public void onBackPressed() {
+
+        if (webView != null &&
+                webView.canGoBack()) {
+
+            webView.goBack();
+
+        } else {
+
+            super.onBackPressed();
+        }
+    }
+}

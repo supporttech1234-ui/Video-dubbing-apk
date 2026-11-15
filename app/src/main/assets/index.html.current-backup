@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width,
+               initial-scale=1.0,
+               maximum-scale=1.0,
+               user-scalable=no">
+
+<title>Movie Dubbing</title>
+
+<style>
+
+/* =========================
+   BASIC
+========================= */
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: #080b10;
+    color: white;
+    font-family: Arial, sans-serif;
+    min-height: 100vh;
+}
+button,
+input,
+select {
+    font-family: Arial, sans-serif;
+}
+/* LANGUAGE SEARCH */
+.language-select-box {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px;
+    border: 1px solid #1d3540;
+    border-radius: 12px;
+    background: #0d151b;
+    color: white;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.language-arrow {
+    color: #71808a;
+    font-size: 12px;
+}
+
+.language-panel {
+    display: none;
+    margin-top: 8px;
+}
+
+#languageSearch, #dubLanguageSearch {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px;
+    margin-top: 4px;
+    margin-bottom: 10px;
+    border: 1px solid #1d3540;
+    border-radius: 12px;
+    outline: none;
+    background: #0d151b;
+    color: white;
+    font-size: 15px;
+}
+
+#languageSearch::placeholder, #dubLanguageSearch::placeholder {
+    color: #71808a;
+}
+
+.language-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.language-option {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: center;
+    min-height: 68px;
+    box-sizing: border-box;
+    padding: 13px 14px;
+    border: 1px solid #1d3540;
+    border-radius: 12px;
+    background: #0d151b;
+    color: white;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.language-flag {
+    grid-row: 1 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #171622;
+    font-size: 25px;
+}
+
+.language-name {
+    grid-column: 2;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22px;
+}
+
+.language-subtitle {
+    grid-column: 2;
+    font-size: 13px;
+    color: #8f8a9d;
+    line-height: 19px;
+}
+
+
+.language-option.selected {
+    box-shadow: 0 0 0 1px rgba(160, 130, 255, 0.25);
+
+    border-color: #00ffff;
+    background: #10252d;
+}
+
+.language-option:hover {
+    background: #10252d;
+}
+
+button {
+    cursor: pointer;
+}
+
+/* =========================
+   HOME
+========================= */
+
+#homeScreen {
+    min-height: 100vh;
+    padding: 22px;
+    background: #080b10;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    font-size: 27px;
+    font-weight: bold;
+    color: #20d9ff;
+}
+
+.subtitle {
+    margin-top: 6px;
+    color: #9ca9b5;
+    font-size: 14px;
+}
+
+.settings-button {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #1d3540;
+    border-radius: 50%;
+    background: #0d151b;
+    color: white;
+    font-size: 20px;
+}
+
+.section-title {
+    margin-top: 35px;
+    margin-bottom: 14px;
+    color: #d9e5eb;
+    font-size: 17px;
+    font-weight: bold;
+}
+
+.card {
+    margin-bottom: 16px;
+    padding: 22px;
+    border: 1px solid #173642;
+    border-radius: 18px;
+    background: #0d151b;
+}
+
+.card:active {
+    transform: scale(0.98);
+}
+
+.card-icon {
+    font-size: 34px;
+    margin-bottom: 12px;
+}
+
+.card-title {
+    font-size: 19px;
+    font-weight: bold;
+}
+
+.card-text {
+    margin-top: 6px;
+    color: #8fa1ad;
+    font-size: 13px;
+}
+
+/* =========================
+   SETTINGS
+========================= */
+
+#settingsOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 50;
+}
+
+#settingsPanel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 82%;
+    max-width: 360px;
+    height: 100%;
+    padding: 24px;
+    background: #0b1117;
+    border-left: 1px solid #1c3945;
+}
+
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-title {
+    font-size: 22px;
+    font-weight: bold;
+    color: #20d9ff;
+}
+
+.close-button {
+    border: 0;
+    background: transparent;
+    color: white;
+    font-size: 27px;
+}
+
+.setting-item {
+    margin-top: 28px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #1a2b33;
+}
+
+.setting-label {
+    color: #8fa1ad;
+    font-size: 13px;
+}
+
+.setting-value {
+    margin-top: 7px;
+    font-size: 16px;
+}
+
+/* =========================
+   VIDEO SCREEN
+========================= */
+
+#videoScreen {
+    display: none;
+    min-height: 100vh;
+    padding: 22px;
+    background: #080b10;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.back-button {
+    width: 42px;
+    height: 42px;
+    border: 1px solid #1d3540;
+    border-radius: 50%;
+    background: #0d151b;
+    color: white;
+    font-size: 20px;
+}
+
+.page-title {
+    font-size: 21px;
+    font-weight: bold;
+}
+
+.video-box {
+    margin-top: 22px;
+    width: 100%;
+    min-height: 220px;
+    border: 1px solid #173642;
+    border-radius: 18px;
+    background: #05080b;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#videoPreview {
+    width: 100%;
+    max-height: 300px;
+    display: none;
+    background: black;
+}
+
+.info-box {
+    margin-top: 18px;
+    padding: 15px;
+    border: 1px solid #173642;
+    border-radius: 14px;
+    background: #0d151b;
+}
+
+.info-label {
+    color: #7f929d;
+    font-size: 12px;
+}
+
+.info-value {
+    margin-top: 5px;
+    font-size: 15px;
+}
+
+/* =========================
+   FORM
+========================= */
+
+.form-group {
+    margin-top: 18px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    color: #9baab3;
+    font-size: 13px;
+}
+
+select {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid #1d3540;
+    border-radius: 12px;
+    outline: none;
+    background: #0d151b;
+    color: white;
+    font-size: 15px;
+}
+
+.voice-row {
+    display: flex;
+    gap: 10px;
+}
+
+.voice-option {
+    flex: 1;
+    padding: 15px 10px;
+    border: 1px solid #1d3540;
+    border-radius: 13px;
+    background: #0d151b;
+    color: #b8c5cc;
+    text-align: center;
+}
+
+.voice-option.active {
+    border-color: #20d9ff;
+    background: #0b2029;
+    color: #20d9ff;
+}
+
+.online-box {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #16404d;
+    border-radius: 14px;
+    background: #08161c;
+}
+
+.online-title {
+    color: #20d9ff;
+    font-weight: bold;
+}
+
+.online-text {
+    margin-top: 6px;
+    color: #8fa1ad;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* =========================
+   START BUTTON
+========================= */
+
+.start-button {
+    width: 100%;
+    margin-top: 22px;
+    padding: 17px;
+    border: 0;
+    border-radius: 14px;
+    background: #08bfe8;
+    color: #001018;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.start-button:active {
+    transform: scale(0.98);
+}
+
+/* =========================
+   PROGRESS SCREEN
+========================= */
+
+#progressScreen {
+    display: none;
+    min-height: 100vh;
+    padding: 22px;
+    background: #080b10;
+}
+
+.progress-title {
+    margin-top: 30px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.progress-subtitle {
+    margin-top: 7px;
+    color: #8999a3;
+    font-size: 13px;
+}
+
+.progress-number {
+    margin-top: 45px;
+    text-align: center;
+    font-size: 52px;
+    font-weight: bold;
+    color: #20d9ff;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    margin-top: 25px;
+    border-radius: 20px;
+    background: #17242b;
+    overflow: hidden;
+}
+
+#progressFill {
+    width: 0%;
+    height: 100%;
+    border-radius: 20px;
+    background: #20d9ff;
+    transition: width 0.15s linear;
+}
+
+.process-box {
+    margin-top: 28px;
+    padding: 18px;
+    border: 1px solid #173642;
+    border-radius: 15px;
+    background: #0d151b;
+}
+
+.process-label {
+    color: #7f929d;
+    font-size: 12px;
+}
+
+#processName {
+    margin-top: 8px;
+    font-size: 16px;
+}
+
+.time-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    color: #9baab3;
+    font-size: 13px;
+}
+
+#completeBox {
+    display: none;
+    margin-top: 28px;
+    padding: 22px;
+    border: 1px solid #1c4a55;
+    border-radius: 17px;
+    background: #08161c;
+    text-align: center;
+}
+
+.complete-icon {
+    font-size: 42px;
+}
+
+.complete-title {
+    margin-top: 10px;
+    color: #20d9ff;
+    font-size: 21px;
+    font-weight: bold;
+}
+
+.complete-text {
+    margin-top: 8px;
+    color: #9baab3;
+    font-size: 13px;
+}
+
+.complete-button {
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px;
+    border: 1px solid #20d9ff;
+    border-radius: 12px;
+    background: #0b2029;
+    color: #20d9ff;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+/* =========================
+   HIDDEN INPUT
+========================= */
+
+#videoPicker {
+    display: none;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div style="padding:20px;margin:20px;border:1px solid #444;border-radius:12px;">
+    <button onclick="testNative()">TEST NATIVE</button>
+    <div id="nativeResult" style="margin-top:12px;">Native test not run</div>
+</div>
+
+<script>
+function testNative() {
+    const result = document.getElementById("nativeResult");
+    try {
+        if (window.AndroidBridge && AndroidBridge.nativeTestFromApp) {
+            result.textContent = AndroidBridge.nativeTestFromApp();
+        } else {
+            result.textContent = "AndroidBridge not available";
+        }
+    } catch (e) {
+        result.textContent = "Native test error: " + e;
+    }
+}
+</script>
+
+
+
+<!-- =========================
+     HOME
+========================= -->
+
+<div id="homeScreen">
+
+    <div class="header">
+
+        <div>
+
+            <div class="logo">
+                Movie Dubbing
+            </div>
+
+            <div class="subtitle">
+                Multi Voice AI Dubbing
+            </div>
+
+        </div>
+
+        <button
+            class="settings-button"
+            onclick="openSettings()">
+            ⚙
+        </button>
+
+    </div>
+
+
+    <div class="section-title">
+        Create New Dub
+    </div>
+
+
+    <div
+        class="card"
+        onclick="openGallery()">
+
+        <div class="card-icon">
+            🎬
+        </div>
+
+        <div class="card-title">
+            Gallery
+        </div>
+
+        <div class="card-text">
+            Select a movie from your device
+        </div>
+
+    </div>
+
+
+    <div
+        class="card"
+        onclick="openAudio()">
+
+        <div class="card-icon">
+            📁
+        </div>
+
+        <div class="card-title">
+            FILE
+        </div>
+
+        <div class="card-text">
+            Select audio or media files
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     SETTINGS
+========================= -->
+
+<div id="settingsOverlay"
+     onclick="closeSettings(event)">
+
+    <div id="settingsPanel"
+         onclick="event.stopPropagation()">
+
+        <div class="settings-header">
+
+            <div class="settings-title">
+                Settings
+            </div>
+
+            <button
+                class="close-button"
+                onclick="closeSettings()">
+                ×
+            </button>
+
+        </div>
+
+
+        <div class="setting-item">
+
+            <div class="setting-label">
+                System Language
+            </div>
+
+            <div class="setting-value">
+                English
+            </div>
+
+        </div>
+
+
+        <div class="setting-item">
+
+            <div class="setting-label">
+                Version
+            </div>
+
+            <div class="setting-value">
+                1.0
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     VIDEO PICKER
+========================= -->
+
+<input
+    id="videoPicker"
+    type="file"
+    accept="video/*"
+    onchange="videoSelected(event)"
+>
+
+<input
+    id="filePicker"
+    type="file"
+    accept="video/*,audio/*"
+    style="display:none"
+    onchange="fileSelected(event)"
+>
+
+
+
+<!-- =========================
+     VIDEO / NEW DUB
+========================= -->
+
+<div id="videoScreen">
+
+    <div class="topbar">
+
+        <button
+            class="back-button"
+            onclick="closeVideoScreen()">
+            ←
+        </button>
+
+        <div class="page-title">
+            New Dub
+        </div>
+
+    </div>
+
+
+    <div class="video-box">
+
+        <video
+            id="videoPreview"
+            controls>
+        </video>
+
+        <audio id="audioPreview" controls style="display:none; width:100%;"></audio>
+
+    </div>
+
+
+    <div class="info-box">
+
+        <div class="info-label">
+            Selected Movie
+        </div>
+
+        <div
+            id="selectedMovieName"
+            class="info-value">
+            No movie selected
+        </div>
+
+    </div>
+
+
+<!-- ORIGINAL LANGUAGE -->
+
+<div class="form-group">
+
+    <label class="form-label">
+        ORIGINAL LANGUAGE
+    </label>
+
+    <div
+        id="originalLanguageBox"
+        class="language-select-box"
+        onclick="toggleOriginalLanguage()">
+        <span id="originalLanguageText">Auto-detect</span>
+        <span class="language-arrow">▼</span>
+    </div>
+
+    <div id="originalLanguagePanel" class="language-panel">
+
+        <input
+            id="languageSearch"
+            type="text"
+            placeholder="Search language..."
+            oninput="filterLanguages()">
+
+        <div id="languageList" class="language-list">
+
+            <div class="language-option" data-value="auto" onclick="selectLanguage(this)">
+                <span class="language-flag">✨</span>
+                <span class="language-name">Auto-detect</span>
+                <span class="language-subtitle">Automatically detect</span>
+            </div>
+
+            <div class="language-option" data-value="en" onclick="selectLanguage(this)">
+                <span class="language-flag">🇺🇸</span>
+                <span class="language-name">English</span>
+                <span class="language-subtitle">English (US)</span>
+            </div>
+
+            <div class="language-option" data-value="es" onclick="selectLanguage(this)">
+                <span class="language-flag">🇪🇸</span>
+                <span class="language-name">Spanish</span>
+                <span class="language-subtitle">Español</span>
+            </div>
+
+            <div class="language-option" data-value="ta" onclick="selectLanguage(this)">
+                <span class="language-flag">🇮🇳</span>
+                <span class="language-name">தமிழ்</span>
+                <span class="language-subtitle">Tamil</span>
+            </div>
+
+            <div class="language-option" data-value="hi" onclick="selectLanguage(this)">
+                <span class="language-flag">🇮🇳</span>
+                <span class="language-name">हिन्दी</span>
+                <span class="language-subtitle">Hindi</span>
+            </div>
+
+            <div class="language-option" data-value="zh" onclick="selectLanguage(this)">
+                <span class="language-flag">🇨🇳</span>
+                <span class="language-name">中文</span>
+                <span class="language-subtitle">Chinese (Mandarin)</span>
+            </div>
+
+            <div class="language-option" data-value="fr" onclick="selectLanguage(this)">
+                <span class="language-flag">🇫🇷</span>
+                <span class="language-name">Français</span>
+                <span class="language-subtitle">French</span>
+            </div>
+
+            <div class="language-option" data-value="pt" onclick="selectLanguage(this)">
+                <span class="language-flag">🇧🇷</span>
+                <span class="language-name">Português</span>
+                <span class="language-subtitle">Portuguese (Brazil)</span>
+            </div>
+
+            <div class="language-option" data-value="de" onclick="selectLanguage(this)">
+                <span class="language-flag">🇩🇪</span>
+                <span class="language-name">Deutsch</span>
+                <span class="language-subtitle">German</span>
+            </div>
+
+            <div class="language-option" data-value="ja" onclick="selectLanguage(this)">
+                <span class="language-flag">🇯🇵</span>
+                <span class="language-name">日本語</span>
+                <span class="language-subtitle">Japanese</span>
+            </div>
+
+            <div class="language-option" data-value="ko" onclick="selectLanguage(this)">
+                <span class="language-flag">🇰🇷</span>
+                <span class="language-name">한국어</span>
+                <span class="language-subtitle">Korean</span>
+            </div>
+
+        </div>
+
+    </div>
+
+    <input type="hidden" id="originalLanguage" value="auto">
+
+</div>
+
+<!-- DUB LANGUAGE -->
+
+<div class="form-group">
+
+    <label class="form-label">
+        DUBBED MOVIE LANGUAGE
+    </label>
+
+    <div
+        id="dubLanguageBox"
+        class="language-select-box"
+        onclick="toggleDubLanguage()">
+        <span id="dubLanguageText">English</span>
+        <span class="language-arrow">▼</span>
+    </div>
+
+    <div id="dubLanguagePanel" class="language-panel">
+
+        <input
+            id="dubLanguageSearch"
+            type="text"
+            placeholder="Search language..."
+            oninput="filterDubLanguages()">
+
+        <div id="dubLanguageList" class="language-list">
+
+            <div class="language-option" data-value="en" onclick="selectDubLanguage(this)">English</div>
+            <div class="language-option" data-value="es" onclick="selectDubLanguage(this)">Spanish</div>
+            <div class="language-option" data-value="ta" onclick="selectDubLanguage(this)">Tamil</div>
+            <div class="language-option" data-value="hi" onclick="selectDubLanguage(this)">Hindi</div>
+            <div class="language-option" data-value="zh" onclick="selectDubLanguage(this)">Chinese (Mandarin)</div>
+            <div class="language-option" data-value="fr" onclick="selectDubLanguage(this)">French</div>
+            <div class="language-option" data-value="pt" onclick="selectDubLanguage(this)">Portuguese</div>
+            <div class="language-option" data-value="de" onclick="selectDubLanguage(this)">German</div>
+            <div class="language-option" data-value="ja" onclick="selectDubLanguage(this)">Japanese</div>
+            <div class="language-option" data-value="ko" onclick="selectDubLanguage(this)">Korean</div>
+
+        </div>
+
+    </div>
+
+    <input type="hidden" id="dubLanguage" value="en">
+
+</div>
+<!-- VOICE MODE -->
+
+<div class="form-group">
+
+    <label class="form-label">
+        VOICE MODE
+    </label>
+
+        <div class="voice-row">
+
+            <button
+                id="multiVoice"
+                class="voice-option active"
+                onclick="selectMultiVoice()">
+
+                🎭 Multi Voice
+
+            </button>
+
+
+            <button
+                id="oneVoice"
+                class="voice-option"
+                onclick="selectOneVoice()">
+
+                🎙️ One Voice
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- ONLINE -->
+
+    <div class="online-box">
+
+        <div class="online-title">
+            ☁️ Online AI Dubbing
+        </div>
+
+        <div class="online-text">
+            Movie will be uploaded for online processing.
+        </div>
+
+    </div>
+
+
+    <!-- START -->
+
+    <button
+        class="start-button"
+        onclick="startDubbing()">
+
+        ✨ START AI DUBBING
+
+    </button>
+
+</div>
+
+
+<!-- =========================
+     PROGRESS
+========================= -->
+
+<div id="progressScreen">
+
+    <div class="topbar">
+
+        <button
+            class="back-button"
+            onclick="location.reload()">
+            ←
+        </button>
+
+        <div class="page-title">
+            AI Dubbing
+        </div>
+
+    </div>
+
+
+    <div class="progress-title">
+        Dubbing Movie
+    </div>
+
+    <div class="progress-subtitle">
+        AI is processing your movie
+    </div>
+
+
+    <div
+        id="progressNumber"
+        class="progress-number">
+        0%
+    </div>
+
+
+    <div class="progress-bar">
+
+        <div id="progressFill"></div>
+
+    </div>
+
+
+    <div class="process-box">
+
+        <div class="process-label">
+            CURRENT PROCESS
+        </div>
+
+        <div id="processName">
+            Preparing movie...
+        </div>
+
+    </div>
+
+
+    <div class="time-row">
+
+        <div>
+            Elapsed:
+            <span id="elapsedTime">
+                00:00
+            </span>
+        </div>
+
+        <div>
+            Remaining:
+            <span id="remainingTime">
+                --:--
+            </span>
+        </div>
+
+    </div>
+
+
+    <!-- COMPLETE -->
+
+    <div id="completeBox">
+
+        <div class="complete-icon">
+            ✅
+        </div>
+
+        <div class="complete-title">
+            Dubbing Complete
+        </div>
+
+        <div class="complete-text">
+            Your dubbed movie is ready.
+        </div>
+
+
+        <button
+            class="complete-button"
+            onclick="playDubbedMovie()">
+
+            ▶ Play Dubbed Movie
+
+        </button>
+
+
+        <button
+            class="complete-button"
+            onclick="saveDubbedMovie()">
+
+            💾 Save Dubbed Movie
+
+        </button>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* =========================
+   VARIABLES
+========================= */
+
+let selectedVideo = null;
+
+let voiceMode = "multi";
+
+let progressTimer = null;
+
+let startTime = 0;
+
+
+/* =========================
+   GALLERY
+========================= */
+
+function openGallery() {
+
+    document
+        .getElementById("videoPicker")
+        .click();
+
+}
+
+
+/* =========================
+   AUDIO
+========================= */
+
+function openAudio() {
+
+    document
+        .getElementById("filePicker")
+        .click();
+
+}
+
+
+/* =========================
+   VIDEO SELECTED
+========================= */
+
+function videoSelected(event) {
+
+    const file =
+        event.target.files[0];
+
+    if (!file) {
+        return;
+    }
+
+
+    selectedVideo = file;
+
+
+    document
+        .getElementById("homeScreen")
+        .style.display = "none";
+
+
+    document
+        .getElementById("videoScreen")
+        .style.display = "block";
+
+
+    document
+        .getElementById("selectedMovieName")
+        .innerText = file.name;
+
+
+    const video =
+        document.getElementById("videoPreview");
+
+
+    video.src =
+        URL.createObjectURL(file);
+
+
+    video.style.display = "block";
+
+}
+
+
+/* =========================
+   CLOSE VIDEO
+========================= */
+
+function fileSelected(event) {
+
+    const file = event.target.files[0];
+
+    if (!file) {
+        return;
+    }
+
+    if (file.type.startsWith("video/")) {
+        selectedVideo = file;
+    } else if (file.type.startsWith("audio/")) {
+        window.selectedAudio = file;
+        selectedVideo = null;
+    } else {
+        alert("Please select a video or audio file.");
+        return;
+    }
+
+    document.getElementById("homeScreen").style.display = "none";
+    document.getElementById("videoScreen").style.display = "block";
+    document.getElementById("selectedMovieName").innerText = file.name;
+
+    const video = document.getElementById("videoPreview");
+    const audio = document.getElementById("audioPreview");
+
+    if (file.type.startsWith("video/")) {
+
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.style.display = "none";
+
+        video.src = URL.createObjectURL(file);
+        video.style.display = "block";
+
+    } else {
+
+        video.pause();
+        video.removeAttribute("src");
+        video.style.display = "none";
+
+        audio.src = URL.createObjectURL(file);
+        audio.style.display = "block";
+        audio.load();
+        audio.pause();
+
+    }
+
+}
+function closeVideoScreen() {
+
+    document
+        .getElementById("videoScreen")
+        .style.display = "none";
+
+
+    document
+        .getElementById("homeScreen")
+        .style.display = "block";
+
+}
+
+
+/* =========================
+   MULTI VOICE
+========================= */
+
+function selectMultiVoice() {
+
+    voiceMode = "multi";
+
+
+    document
+        .getElementById("multiVoice")
+        .classList.add("active");
+
+
+    document
+        .getElementById("oneVoice")
+        .classList.remove("active");
+
+}
+
+
+/* =========================
+   ONE VOICE
+========================= */
+
+function selectOneVoice() {
+
+    voiceMode = "one";
+
+
+    document
+        .getElementById("oneVoice")
+        .classList.add("active");
+
+
+    document
+        .getElementById("multiVoice")
+        .classList.remove("active");
+
+}
+
+
+/* =========================
+   START DUBBING
+========================= */
+
+function startDubbing() {
+
+    if (!selectedVideo && !window.selectedAudio) {
+        alert("Please select a video or audio file.");
+        return;
+    }
+
+    const videoScreen = document.getElementById("videoScreen");
+    const progressScreen = document.getElementById("progressScreen");
+    const completeBox = document.getElementById("completeBox");
+    const progressNumber = document.getElementById("progressNumber");
+    const progressBar = document.querySelector(".progress-bar");
+    const processBox = document.querySelector(".process-box");
+    const timeRow = document.querySelector(".time-row");
+    const progressFill = document.getElementById("progressFill");
+    const processName = document.getElementById("processName");
+
+    if (!progressScreen || !progressNumber ||
+        !progressFill || !processName) {
+        alert("Progress screen error.");
+        return;
+    }
+
+    if (videoScreen) {
+        videoScreen.style.display = "none";
+    }
+
+    progressScreen.style.display = "block";
+
+    if (completeBox) {
+        completeBox.style.display = "none";
+    }
+
+    progressNumber.style.display = "block";
+
+    if (progressBar) {
+        progressBar.style.display = "block";
+    }
+
+    if (processBox) {
+        processBox.style.display = "block";
+    }
+
+    if (timeRow) {
+        timeRow.style.display = "flex";
+    }
+
+    progressNumber.innerText = "0%";
+    progressFill.style.width = "0%";
+    processName.innerText = "Uploading movie...";
+
+    startTime = Date.now();
+
+    startProgress();
+}
+
+
+/* =========================
+   PROGRESS
+========================= */
+
+function startProgress() {
+
+    if (progressTimer) {
+        clearInterval(progressTimer);
+    }
+
+    let progress = 0;
+
+    progressTimer = setInterval(function () {
+
+        progress += 2;
+
+        const number = document.getElementById("progressNumber");
+        const fill = document.getElementById("progressFill");
+        const name = document.getElementById("processName");
+
+        if (!number || !fill || !name) {
+            clearInterval(progressTimer);
+            progressTimer = null;
+            return;
+        }
+
+        number.innerText = progress + "%";
+        fill.style.width = progress + "%";
+
+        updateTime(progress);
+
+        if (progress < 20) {
+            name.innerText = "Uploading movie...";
+        } else if (progress < 40) {
+            name.innerText = "Preparing media...";
+        } else if (progress < 60) {
+            name.innerText = "Transcribing speech...";
+        } else if (progress < 75) {
+            name.innerText = "Translating dialogue...";
+        } else if (progress < 90) {
+            name.innerText = "Generating voices...";
+        } else if (progress < 100) {
+            name.innerText = "Exporting final file...";
+        } else {
+
+            clearInterval(progressTimer);
+            progressTimer = null;
+
+            name.innerText = "Dubbing complete";
+            number.innerText = "100%";
+            fill.style.width = "100%";
+
+            setTimeout(function () {
+                if (typeof showComplete === "function") {
+                    showComplete();
+                }
+            }, 500);
+        }
+
+    }, 150);
+}
+
+
+/* =========================
+   TIME
+========================= */
+
+function updateTime(progress) {
+
+    const elapsed =
+        Math.floor(
+            (Date.now() - startTime) / 1000
+        );
+
+
+    const minutes =
+        Math.floor(
+            elapsed / 60
+        );
+
+
+    const seconds =
+        elapsed % 60;
+
+
+    document
+    .getElementById("elapsedTime")
+    .innerText =
+    String(minutes).padStart(2, "0") +
+    ":" +
+    String(seconds).padStart(2, "0");
+
+
+const estimatedTotal =
+    Math.max(
+        1,
+        Math.floor(
+            elapsed * 100 / Math.max(progress, 1)
+        )
+    );
+
+
+const remaining =
+    Math.max(
+        0,
+        estimatedTotal - elapsed
+    );
+
+
+const remainingMinutes =
+    Math.floor(
+        remaining / 60
+    );
+
+
+const remainingSeconds =
+    remaining % 60;
+
+
+document
+    .getElementById("remainingTime")
+    .innerText =
+    String(remainingMinutes).padStart(2, "0") +
+    ":" +
+    String(remainingSeconds).padStart(2, "0");
+
+}
+          +
+        ":"
+        +
+        String(seconds)
+            .padStart(2, "0");
+
+
+    if (progress > 0) {
+
+        const totalSeconds =
+            Math.floor(
+                elapsed * (100 / progress)
+            );
+
+        const remaining =
+            Math.max(
+                0,
+                totalSeconds - elapsed
+            );
+
+        const remainingMinutes =
+            Math.floor(
+                remaining / 60
+            );
+
+        const remainingSeconds =
+            remaining % 60;
+
+        document
+            .getElementById("remainingTime")
+            .innerText =
+            String(remainingMinutes)
+                .padStart(2, "0")
+            +
+            ":"
+            +
+            String(remainingSeconds)
+                .padStart(2, "0");
+
+    }
+
+
+
+/* =========================
+   COMPLETE
+========================= */
+
+function showComplete() {
+
+    document
+        .getElementById("completeBox")
+        .style.display = "block";
+
+    document
+        .getElementById("processName")
+        .innerText =
+        "Dubbing complete";
+
+}
+
+
+/* =========================
+   PLAY
+========================= */
+
+function playDubbedMovie() {
+
+    alert(
+        "Dubbed movie playback will be connected after the online server processing is added."
+    );
+
+}
+
+
+/* =========================
+   SAVE
+========================= */
+
+function saveDubbedMovie() {
+
+    alert(
+        "Dubbed movie saving will be connected after the online server processing is added."
+    );
+
+}
+
+
+/* =========================
+   SETTINGS
+========================= */
+
+function openSettings() {
+
+    document
+        .getElementById("settingsOverlay")
+        .style.display = "block";
+
+}
+
+
+function closeSettings(event) {
+
+    if (
+        event &&
+        event.target !==
+        document.getElementById(
+            "settingsOverlay"
+        )
+    ) {
+        return;
+    }
+
+    document
+        .getElementById("settingsOverlay")
+        .style.display = "none";
+
+}
+
+function filterLanguages() {
+
+    const search = document
+        .getElementById("languageSearch")
+        .value
+        .toLowerCase();
+
+    const options = document
+        .querySelectorAll("#languageList .language-option");
+
+    options.forEach(function(option) {
+
+        const name = option
+            .innerText
+            .toLowerCase();
+
+        option.style.display =
+            name.includes(search)
+                ? "block"
+                : "none";
+
+    });
+}
+
+function toggleOriginalLanguage() {
+
+    const panel = document.getElementById("originalLanguagePanel");
+
+    panel.style.display =
+        panel.style.display === "block" ? "none" : "block";
+
+}
+
+function toggleDubLanguage() {
+
+    const panel = document.getElementById("dubLanguagePanel");
+
+    panel.style.display =
+        panel.style.display === "block" ? "none" : "block";
+
+}
+
+
+function selectLanguage(option) {
+
+    const options = document
+        .querySelectorAll("#languageList .language-option");
+
+    options.forEach(function(item) {
+        item.classList.remove("selected");
+    });
+
+    option.classList.add("selected");
+
+    document
+        .getElementById("originalLanguage")
+        .value = option.dataset.value;
+
+    document.getElementById("originalLanguageText").innerText =
+        option.querySelector(".language-name")
+            ? option.querySelector(".language-name").innerText
+            : option.innerText.trim();
+
+    document
+        .getElementById("languageSearch")
+        .value = "";
+
+    document
+        .getElementById("originalLanguagePanel")
+        .style.display = "none";
+
+}
+
+function filterDubLanguages() {
+
+    const search = document
+        .getElementById("dubLanguageSearch")
+        .value
+        .toLowerCase();
+
+    const options = document
+        .querySelectorAll("#dubLanguageList .language-option");
+
+    options.forEach(function(option) {
+
+        const name = option
+            .innerText
+            .toLowerCase();
+
+        option.style.display =
+            name.includes(search)
+                ? "block"
+                : "none";
+
+    });
+}
+
+function selectDubLanguage(option) {
+
+    const options = document
+        .querySelectorAll("#dubLanguageList .language-option");
+
+    options.forEach(function(item) {
+        item.classList.remove("selected");
+    });
+
+    option.classList.add("selected");
+
+    document
+        .getElementById("dubLanguage")
+        .value = option.dataset.value;
+
+    document
+        .getElementById("dubLanguageText")
+        .innerText = option.innerText;
+
+    document
+        .getElementById("dubLanguageSearch")
+        .value = "";
+
+    document
+        .getElementById("dubLanguagePanel")
+        .style.display = "none";
+
+}
+
+
+document.addEventListener("DOMContentLoaded", function() {
+
+    const originalFirst = document.querySelector("#languageList .language-option[data-value='auto']");
+
+    if (originalFirst) {
+        originalFirst.classList.add("selected");
+        document.getElementById("originalLanguage").value = "auto";
+    }
+
+    const dubFirst = document.querySelector("#dubLanguageList .language-option[data-value='en']");
+
+    if (dubFirst) {
+        dubFirst.classList.add("selected");
+        document.getElementById("dubLanguage").value = "en";
+    }
+
+});
+
+</script>
+
+</body>
+</html>

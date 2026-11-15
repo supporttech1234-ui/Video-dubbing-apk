@@ -1,0 +1,15 @@
+*.apk
+*.mp3
+*.mp4
+*.wav
+.git
+.gradle
+__pycache__
+app/build
+build
+indictrans2/
+indictrans2/.git
+uploads/*
+whisper.cpp/
+whisper.cpp/.git
+whisper.cpp/build
