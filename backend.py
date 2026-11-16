@@ -258,6 +258,107 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         print("POST REQUEST:", self.path, flush=True)
 
+        # TRANSLATION + TTS ENDPOINT
+        if self.path == "/translate-tts":
+            content_length = int(
+                self.headers.get("Content-Length", "0")
+            )
+
+            if content_length <= 0:
+                self.send_json(
+                    {"error": "Empty request"},
+                    400
+                )
+                return
+
+            body = self.rfile.read(content_length)
+
+            try:
+                data = json.loads(
+                    body.decode("utf-8")
+                )
+            except Exception:
+                self.send_json(
+                    {"error": "Invalid JSON"},
+                    400
+                )
+                return
+
+            transcript = str(
+                data.get("transcript", "")
+            ).strip()
+
+            if not transcript:
+                self.send_json(
+                    {"error": "Transcript is empty"},
+                    400
+                )
+                return
+
+            try:
+                print(
+                    "TRANSLATION: translating...",
+                    flush=True
+                )
+
+                translated_text = translate_text(
+                    transcript,
+                    src_lang="tam_Taml",
+                    tgt_lang="eng_Latn"
+                )
+
+                if not translated_text:
+                    raise RuntimeError(
+                        "Translation returned empty text"
+                    )
+
+                print(
+                    "TTS: generating English voice...",
+                    flush=True
+                )
+
+                tts_name = (
+                    "tts_" +
+                    uuid.uuid4().hex +
+                    ".mp3"
+                )
+
+                tts_path = os.path.join(
+                    UPLOAD_DIR,
+                    tts_name
+                )
+
+                synthesize_tts(
+                    translated_text,
+                    tts_path,
+                    voice="en-US-JennyNeural"
+                )
+
+                self.send_json({
+                    "status": "translated_tts",
+                    "translated_text":
+                        translated_text,
+                    "tts_file":
+                        tts_name,
+                    "tts_url":
+                        "/output/" + tts_name
+                })
+
+            except Exception as e:
+                print(
+                    "TRANSLATION/TTS ERROR:",
+                    repr(e),
+                    flush=True
+                )
+
+                self.send_json({
+                    "status": "error",
+                    "stage": "translation_tts",
+                    "error": str(e)
+                }, 500)
+
+            return
+
         # WHISPER-ONLY AUDIO ENDPOINT
         if self.path == "/transcribe":
             content_length = int(self.headers.get("Content-Length", "0"))
