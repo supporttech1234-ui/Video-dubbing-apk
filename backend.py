@@ -58,7 +58,6 @@ def transcribe_with_groq(audio_path):
         transcription = client.audio.transcriptions.create(
             file=audio_file,
             model="whisper-large-v3-turbo",
-            language="ta",
             response_format="text"
         )
 
@@ -76,7 +75,8 @@ def translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
 
     client = Groq(api_key=GROQ_API_KEY)
 
-    prompt = f"""Translate the following Tamil movie dialogue into natural spoken English.
+    if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
+        prompt = f"""Translate the following Tamil movie dialogue into natural spoken English.
 Keep the meaning, emotion, and dialogue style.
 Return ONLY the English translation.
 Do not explain anything.
@@ -84,13 +84,29 @@ Do not explain anything.
 Tamil dialogue:
 {text}
 """
+        system_prompt = "You are a professional Tamil-to-English movie dialogue translator."
+
+    elif src_lang == "eng_Latn" and tgt_lang == "tam_Taml":
+        prompt = f"""Translate the following English movie dialogue into natural spoken Tamil.
+Keep the meaning, emotion, and dialogue style.
+Use natural spoken Tamil suitable for movie dubbing.
+Return ONLY the Tamil translation.
+Do not explain anything.
+
+English dialogue:
+{text}
+"""
+        system_prompt = "You are a professional English-to-Tamil movie dialogue translator."
+
+    else:
+        raise RuntimeError(f"Unsupported translation direction: {src_lang} -> {tgt_lang}")
 
     response = client.chat.completions.create(
         model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "system",
-                "content": "You are a professional Tamil-to-English movie dialogue translator."
+                "content": system_prompt
             },
             {
                 "role": "user",
@@ -111,9 +127,6 @@ Tamil dialogue:
     print(translated)
 
     return translated
-
-
-
 
 def merge_video_audio(video_path, audio_path, output_path):
     cmd = [
@@ -288,6 +301,29 @@ class Handler(BaseHTTPRequestHandler):
                 data.get("transcript", "")
             ).strip()
 
+            direction = str(
+                data.get("direction", "ta-en")
+            ).strip().lower()
+
+            if direction == "ta-en":
+                src_lang = "tam_Taml"
+                tgt_lang = "eng_Latn"
+                tts_voice = "en-US-JennyNeural"
+                tts_label = "English"
+
+            elif direction == "en-ta":
+                src_lang = "eng_Latn"
+                tgt_lang = "tam_Taml"
+                tts_voice = "ta-IN-PallaviNeural"
+                tts_label = "Tamil"
+
+            else:
+                self.send_json(
+                    {"error": "Unsupported direction: " + direction},
+                    400
+                )
+                return
+
             if not transcript:
                 self.send_json(
                     {"error": "Transcript is empty"},
@@ -303,8 +339,8 @@ class Handler(BaseHTTPRequestHandler):
 
                 translated_text = translate_text(
                     transcript,
-                    src_lang="tam_Taml",
-                    tgt_lang="eng_Latn"
+                    src_lang=src_lang,
+                    tgt_lang=tgt_lang
                 )
 
                 if not translated_text:
@@ -313,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                     )
 
                 print(
-                    "TTS: generating English voice...",
+                    f"TTS: generating {tts_label} voice...",
                     flush=True
                 )
 
@@ -331,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
                 synthesize_tts(
                     translated_text,
                     tts_path,
-                    voice="en-US-JennyNeural"
+                    voice=tts_voice
                 )
 
                 self.send_json({
