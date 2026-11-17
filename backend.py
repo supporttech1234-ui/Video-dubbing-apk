@@ -397,6 +397,7 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 if GROQ_API_KEY:
+                    transcription_mode = "GROQ"
                     print("TRANSCRIPTION MODE: GROQ", flush=True)
 
                     transcript = transcribe_with_groq(audio_path)
@@ -406,6 +407,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise RuntimeError("Groq transcription returned empty result")
 
                 else:
+                    transcription_mode = "LOCAL_WHISPER"
                     print("TRANSCRIPTION MODE: LOCAL WHISPER", flush=True)
 
                     whisper_cmd = [
@@ -446,7 +448,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({
                     "status": "transcribed",
                     "transcript": transcript,
-                    "transcript_file": os.path.basename(transcript_path)
+                    "transcript_file": os.path.basename(transcript_path),
+                    "transcription_mode": transcription_mode
                 })
 
             except Exception as e:
