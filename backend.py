@@ -359,7 +359,7 @@ class Handler(BaseHTTPRequestHandler):
 
             return
 
-        # WHISPER-ONLY AUDIO ENDPOINT
+        # TRANSCRIPTION AUDIO ENDPOINT
         if self.path == "/transcribe":
             content_length = int(self.headers.get("Content-Length", "0"))
             if content_length <= 0:
@@ -383,7 +383,9 @@ class Handler(BaseHTTPRequestHandler):
                         break
 
             if not audio_data:
-                self.send_json({"error": "Audio field not found; expected field name audio"}, 400)
+                self.send_json({
+                    "error": "Audio field not found; expected field name audio"
+                }, 400)
                 return
 
             audio_name = f"audio_{uuid.uuid4().hex}.wav"
@@ -394,52 +396,68 @@ class Handler(BaseHTTPRequestHandler):
                 f.write(audio_data)
 
             try:
-                print("TRANSCRIPTION MODE: LOCAL WHISPER", flush=True)
+                if GROQ_API_KEY:
+                    print("TRANSCRIPTION MODE: GROQ", flush=True)
 
-                whisper_cmd = [
-                    WHISPER_BIN, "-m", WHISPER_MODEL,
-                    "-f", audio_path, "-l", "ta",
-                    "-otxt", "-nt",
-                    "--prompt",
-                    "இது ஒரு தமிழ் திரைப்பட உரையாடல். கதாபாத்திரங்கள் தமிழில் பேசுகிறார்கள்."
-                ]
+                    transcript = transcribe_with_groq(audio_path)
+                    transcript = str(transcript).strip()
 
-                result = subprocess.run(
-                    whisper_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True
-                )
+                    if not transcript:
+                        raise RuntimeError("Groq transcription returned empty result")
 
-                if result.returncode != 0:
-                    raise RuntimeError(
-                        "Whisper transcription failed: " + result.stdout[-2000:]
+                else:
+                    print("TRANSCRIPTION MODE: LOCAL WHISPER", flush=True)
+
+                    whisper_cmd = [
+                        WHISPER_BIN, "-m", WHISPER_MODEL,
+                        "-f", audio_path, "-l", "ta",
+                        "-otxt", "-nt",
+                        "--prompt",
+                        "இது ஒரு தமிழ் திரைப்பட உரையாடல். கதாபாத்திரங்கள் தமிழில் பேசுகிறார்கள்."
+                    ]
+
+                    result = subprocess.run(
+                        whisper_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True
                     )
 
-                if not os.path.exists(transcript_path):
-                    raise RuntimeError("Whisper transcript file was not created")
+                    if result.returncode != 0:
+                        raise RuntimeError(
+                            "Whisper transcription failed: " + result.stdout[-2000:]
+                        )
 
-                with open(transcript_path, "r", encoding="utf-8") as f:
-                    transcript = f.read().strip()
+                    if not os.path.exists(transcript_path):
+                        raise RuntimeError("Whisper transcript file was not created")
 
-                if not transcript:
-                    raise RuntimeError("Transcript is empty")
+                    with open(transcript_path, "r", encoding="utf-8") as f:
+                        transcript = f.read().strip()
+
+                    if not transcript:
+                        raise RuntimeError("Transcript is empty")
 
                 with open(transcript_path, "w", encoding="utf-8") as f:
                     f.write(transcript)
+
+                print("TRANSCRIPT:", flush=True)
+                print(transcript, flush=True)
 
                 self.send_json({
                     "status": "transcribed",
                     "transcript": transcript,
                     "transcript_file": os.path.basename(transcript_path)
                 })
+
             except Exception as e:
                 print("TRANSCRIPTION ERROR:", repr(e), flush=True)
+
                 self.send_json({
                     "status": "error",
                     "stage": "transcription",
                     "error": str(e)
                 }, 500)
+
             return
 
         if self.path != "/dub":
