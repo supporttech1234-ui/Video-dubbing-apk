@@ -24,9 +24,9 @@ if GROQ_API_KEY:
 else:
     print("GROQ_API_KEY: not configured (local Whisper mode)")
 WHISPER_BIN = os.path.join(BASE_DIR, "whisper.cpp/build/bin/whisper-cli")
-WHISPER_MODEL = os.path.join(BASE_DIR, "whisper.cpp/models/ggml-medium.bin")
+WHISPER_MODEL = os.path.join(BASE_DIR, "whisper.cpp/models/ggml-large-v3.bin")
 
-WHISPER_MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin"
+WHISPER_MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
 
 def ensure_whisper_model():
     if os.path.exists(WHISPER_MODEL) and os.path.getsize(WHISPER_MODEL) > 1000000000:
