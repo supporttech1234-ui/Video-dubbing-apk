@@ -395,6 +395,122 @@ class Handler(BaseHTTPRequestHandler):
 
             return
 
+        # VIDEO + TTS MERGE ENDPOINT
+        if self.path == "/merge-video-audio":
+            content_length = int(
+                self.headers.get("Content-Length", "0")
+            )
+
+            if content_length <= 0:
+                self.send_json(
+                    {"error": "Empty request"},
+                    400
+                )
+                return
+
+            try:
+                data = json.loads(
+                    self.rfile.read(content_length).decode("utf-8")
+                )
+            except Exception:
+                self.send_json(
+                    {"error": "Invalid JSON"},
+                    400
+                )
+                return
+
+            video_file = str(
+                data.get("video_file", "")
+            ).strip()
+
+            tts_file = str(
+                data.get("tts_file", "")
+            ).strip()
+
+            if not video_file or not tts_file:
+                self.send_json(
+                    {
+                        "error": "video_file and tts_file are required"
+                    },
+                    400
+                )
+                return
+
+            video_path = os.path.join(
+                UPLOAD_DIR,
+                os.path.basename(video_file)
+            )
+
+            tts_path = os.path.join(
+                UPLOAD_DIR,
+                os.path.basename(tts_file)
+            )
+
+            if not os.path.exists(video_path):
+                self.send_json(
+                    {"error": "Video file not found"},
+                    404
+                )
+                return
+
+            if not os.path.exists(tts_path):
+                self.send_json(
+                    {"error": "TTS file not found"},
+                    404
+                )
+                return
+
+            dubbed_name = (
+                "dubbed_" +
+                uuid.uuid4().hex +
+                ".mp4"
+            )
+
+            dubbed_path = os.path.join(
+                UPLOAD_DIR,
+                dubbed_name
+            )
+
+            try:
+                print(
+                    "FFMPEG: merging video + TTS...",
+                    flush=True
+                )
+
+                merge_video_audio(
+                    video_path,
+                    tts_path,
+                    dubbed_path
+                )
+
+                print(
+                    "DUBBED VIDEO OK:",
+                    dubbed_path,
+                    flush=True
+                )
+
+                self.send_json({
+                    "status": "merged",
+                    "dubbed_video": dubbed_name,
+                    "dubbed_video_url":
+                        "/output/" + dubbed_name
+                })
+
+            except Exception as e:
+                print(
+                    "MERGE ERROR:",
+                    repr(e),
+                    flush=True
+                )
+
+                self.send_json({
+                    "status": "error",
+                    "stage": "merge",
+                    "error": str(e)
+                }, 500)
+
+            return
+
         # TRANSCRIPTION AUDIO ENDPOINT
         if self.path == "/transcribe":
             content_length = int(self.headers.get("Content-Length", "0"))
@@ -410,13 +526,22 @@ class Handler(BaseHTTPRequestHandler):
             boundary = marker.split("boundary=", 1)[-1].strip().strip('"').encode()
             body = self.rfile.read(content_length)
             audio_data = None
+            video_data = None
 
             for part in body.split(b"--" + boundary):
-                if b'name="audio"' in part:
-                    header_end = part.find(b"\r\n\r\n")
-                    if header_end != -1:
-                        audio_data = part[header_end + 4:].rstrip(b"\r\n-")
-                        break
+                header_end = part.find(b"\r\n\r\n")
+
+                if header_end == -1:
+                    continue
+
+                headers = part[:header_end]
+                content = part[header_end + 4:].rstrip(b"\r\n-")
+
+                if b'name="audio"' in headers:
+                    audio_data = content
+
+                elif b'name="video"' in headers:
+                    video_data = content
 
             if not audio_data:
                 self.send_json({
@@ -427,6 +552,16 @@ class Handler(BaseHTTPRequestHandler):
             audio_name = f"audio_{uuid.uuid4().hex}.wav"
             audio_path = os.path.join(UPLOAD_DIR, audio_name)
             transcript_path = audio_path + ".txt"
+
+            video_name = ""
+            video_path = ""
+
+            if video_data:
+                video_name = f"video_{uuid.uuid4().hex}.mp4"
+                video_path = os.path.join(UPLOAD_DIR, video_name)
+
+                with open(video_path, "wb") as f:
+                    f.write(video_data)
 
             with open(audio_path, "wb") as f:
                 f.write(audio_data)
@@ -485,7 +620,8 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "transcribed",
                     "transcript": transcript,
                     "transcript_file": os.path.basename(transcript_path),
-                    "transcription_mode": transcription_mode
+                    "transcription_mode": transcription_mode,
+                    "video_file": video_name
                 })
 
             except Exception as e:
