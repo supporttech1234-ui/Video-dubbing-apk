@@ -1005,14 +1005,47 @@ class Handler(BaseHTTPRequestHandler):
                     flush=True
                 )
 
-                if not segments:
-                    raise RuntimeError(
-                        "Timestamped segments are missing"
+                usable_segments = []
+
+                for seg in segments:
+                    if not isinstance(seg, dict):
+                        continue
+
+                    seg_text = str(
+                        seg.get("text", "")
+                    ).strip()
+
+                    if seg_text:
+                        usable_segments.append(seg)
+
+                if not usable_segments and transcript:
+                    print(
+                        "TRANSLATION/TTS: no usable segments; "
+                        "using transcript fallback",
+                        flush=True
                     )
+
+                    usable_segments = [{
+                        "id": 0,
+                        "start": 0.0,
+                        "end": 999999.0,
+                        "text": transcript
+                    }]
+
+                if not usable_segments:
+                    raise RuntimeError(
+                        "Transcript and timestamped segments are both empty"
+                    )
+
+                print(
+                    f"TRANSLATION/TTS: usable segments = "
+                    f"{len(usable_segments)}",
+                    flush=True
+                )
 
                 tts_name, translated_segments = (
                     build_timestamped_dubbed_audio(
-                        segments,
+                        usable_segments,
                         src_lang=src_lang,
                         tgt_lang=tgt_lang,
                         voice=tts_voice
