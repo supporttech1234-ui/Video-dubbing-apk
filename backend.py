@@ -675,15 +675,41 @@ def build_timestamped_dubbed_audio(
                 flush=True
             )
 
-            translated = translate_movie_dialogue(
-                text,
-                src_lang=src_lang,
-                tgt_lang=tgt_lang,
-                role="Other"
-            ).strip()
+            print(
+                f"DUB SOURCE TEXT: {text!r}",
+                flush=True
+            )
+
+            try:
+                translated = translate_movie_dialogue(
+                    text,
+                    src_lang=src_lang,
+                    tgt_lang=tgt_lang,
+                    role="Other"
+                ).strip()
+            except Exception as e:
+                print(
+                    f"DUB TRANSLATION FAILED: {type(e).__name__}: {e}",
+                    flush=True
+                )
+                raise
+
+            print(
+                f"DUB TRANSLATED TEXT: {translated!r}",
+                flush=True
+            )
 
             if not translated:
+                print(
+                    "DUB WARNING: translation returned empty text",
+                    flush=True
+                )
                 continue
+
+            print(
+                f"DUB TTS START: voice={voice}",
+                flush=True
+            )
 
             translated_segments.append({
                 "id": int(seg.get("id", i)),
