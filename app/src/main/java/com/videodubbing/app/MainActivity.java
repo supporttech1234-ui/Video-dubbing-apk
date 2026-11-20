@@ -1,6 +1,7 @@
 package com.videodubbing.app;
 
 import android.app.Activity;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import android.content.Intent;
 import org.json.JSONObject;
@@ -21,6 +22,7 @@ import org.json.JSONObject;
 import android.webkit.WebSettings;
 import org.json.JSONObject;
 import android.webkit.WebView;
+import android.util.Log;
 import org.json.JSONObject;
 import android.webkit.WebViewClient;
 import org.json.JSONObject;
@@ -39,6 +41,8 @@ import org.json.JSONObject;
 import android.speech.tts.UtteranceProgressListener;
 import org.json.JSONObject;
 import android.os.Environment;
+import android.content.ContentValues;
+import android.provider.MediaStore;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -54,6 +58,7 @@ import org.json.JSONObject;
 import java.io.InputStream;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import org.json.JSONObject;
@@ -1013,7 +1018,22 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void uploadSelectedVideo() {
+        public void uploadSelectedVideo(
+                String originalLanguage,
+                String dubLanguage,
+                String role
+        ) {
+
+            Log.d("VideoDubbing", "UPLOAD_SELECTED_VIDEO CALLED");
+
+            runOnUiThread(() ->
+                    webView.evaluateJavascript(
+                            "setDubbingProgress(" +
+                                    JSONObjectQuote("Starting audio processing...") +
+                                    ",5)",
+                            null
+                    )
+            );
 
             if (selectedMediaUri == null) {
                 webView.post(() ->
@@ -1159,6 +1179,49 @@ public class MainActivity extends Activity {
 
                     fileInput.close();
 
+                    // Upload original video alongside audio
+                    out.writeBytes(
+                            "--" + boundary + "\r\n"
+                    );
+
+                    out.writeBytes(
+                            "Content-Disposition: form-data; " +
+                                    "name=\"video\"; " +
+                                    "filename=\"original_video.mp4\"\r\n"
+                    );
+
+                    out.writeBytes(
+                            "Content-Type: video/mp4\r\n\r\n"
+                    );
+
+                    InputStream videoInput =
+                            getContentResolver().openInputStream(
+                                    selectedMediaUri
+                            );
+
+                    if (videoInput == null) {
+                        throw new IOException(
+                                "Could not open selected video"
+                        );
+                    }
+
+                    byte[] videoBuffer =
+                            new byte[8192];
+
+                    int videoCount;
+
+                    while ((videoCount =
+                            videoInput.read(videoBuffer)) != -1) {
+
+                        out.write(
+                                videoBuffer,
+                                0,
+                                videoCount
+                        );
+                    }
+
+                    videoInput.close();
+
                     out.writeBytes(
                             "\r\n--" +
                                     boundary +
@@ -1211,16 +1274,78 @@ public class MainActivity extends Activity {
                     if (code >= 200 &&
                             code < 300) {
 
-                        webView.post(() ->
-                                webView.evaluateJavascript(
-                                        "nativeUploadComplete(" +
-                                                JSONObjectQuote(
-                                                        response
-                                                ) +
-                                                ")",
-                                        null
-                                )
-                        );
+                        try {
+                            JSONObject transcriptionJson =
+                                    new JSONObject(response);
+
+                            String transcript =
+                                    transcriptionJson.optString(
+                                            "transcript",
+                                            ""
+                                    ).trim();
+
+                            JSONArray segments =
+                                    transcriptionJson.optJSONArray("segments");
+
+                            if (segments == null) {
+                                segments = new JSONArray();
+                            }
+
+                            if (transcript.isEmpty()) {
+                                throw new Exception(
+                                        "Transcript is empty"
+                                );
+                            }
+
+                            runOnUiThread(() ->
+                                    webView.evaluateJavascript(
+                                            "setDubbingProgress(" +
+                                                    JSONObjectQuote(
+                                                            "Translating dialogue..."
+                                                    ) +
+                                                    ",87)",
+                                            null
+                                    )
+                            );
+
+                            String videoFile =
+                                    transcriptionJson.optString(
+                                            "video_file",
+                                            ""
+                                    ).trim();
+
+                            if (videoFile.isEmpty()) {
+                                throw new Exception(
+                                        "Video file missing from transcription response"
+                                );
+                            }
+
+                            requestTranslationTts(
+                                    transcript,
+                                    segments,
+                                    originalLanguage,
+                                    dubLanguage,
+                                    videoFile,
+                                    role
+                            );
+
+                        } catch (Exception parseError) {
+
+                            final String error =
+                                    "Transcript response error: " +
+                                            parseError.getMessage();
+
+                            webView.post(() ->
+                                    webView.evaluateJavascript(
+                                            "nativeUploadError(" +
+                                                    JSONObjectQuote(
+                                                            error
+                                                    ) +
+                                                    ")",
+                                            null
+                                    )
+                            );
+                        }
 
                     } else {
 
@@ -1284,6 +1409,801 @@ public class MainActivity extends Activity {
                     "\"";
         }
 
+
+        private File downloadTtsAudio(String ttsUrl)
+                throws Exception {
+
+            String fullUrl;
+
+            if (ttsUrl.startsWith("http://") ||
+                    ttsUrl.startsWith("https://")) {
+                fullUrl = ttsUrl;
+            } else {
+                fullUrl =
+                        "https://video-dubbing-apk.onrender.com" +
+                                ttsUrl;
+            }
+
+            URL url = new URL(fullUrl);
+
+            HttpURLConnection conn =
+                    (HttpURLConnection) url.openConnection();
+
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(600000);
+
+            int code = conn.getResponseCode();
+
+            if (code < 200 || code >= 300) {
+                throw new Exception(
+                        "TTS download HTTP " + code
+                );
+            }
+
+            File output =
+                    new File(
+                            getCacheDir(),
+                            "dubbed_tts.mp3"
+                    );
+
+            InputStream input =
+                    conn.getInputStream();
+
+            FileOutputStream fos =
+                    new FileOutputStream(output);
+
+            byte[] buffer = new byte[8192];
+            int read;
+
+            while ((read = input.read(buffer)) != -1) {
+                fos.write(buffer, 0, read);
+            }
+
+            fos.flush();
+            fos.close();
+            input.close();
+            conn.disconnect();
+
+            if (!output.exists() ||
+                    output.length() == 0) {
+                throw new Exception(
+                        "Downloaded TTS file is empty"
+                );
+            }
+
+            Log.d(
+                    "VideoDubbing",
+                    "TTS DOWNLOADED: " +
+                            output.getAbsolutePath() +
+                            " (" +
+                            output.length() +
+                            " bytes)"
+            );
+
+            return output;
+        }
+
+
+        private File downloadDubbedVideo(String videoUrl)
+                throws Exception {
+
+            String fullUrl;
+
+            if (videoUrl.startsWith("http://") ||
+                    videoUrl.startsWith("https://")) {
+                fullUrl = videoUrl;
+            } else {
+                fullUrl =
+                        "https://video-dubbing-apk.onrender.com" +
+                                videoUrl;
+            }
+
+            URL url = new URL(fullUrl);
+
+            HttpURLConnection conn =
+                    (HttpURLConnection) url.openConnection();
+
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(600000);
+
+            int code = conn.getResponseCode();
+
+            if (code < 200 || code >= 300) {
+                throw new Exception(
+                        "Dubbed video download HTTP " + code
+                );
+            }
+
+            File output =
+                    new File(
+                            getCacheDir(),
+                            "dubbed_video.mp4"
+                    );
+
+            InputStream input =
+                    conn.getInputStream();
+
+            FileOutputStream fos =
+                    new FileOutputStream(output);
+
+            byte[] buffer = new byte[8192];
+            int read;
+
+            while ((read = input.read(buffer)) != -1) {
+                fos.write(buffer, 0, read);
+            }
+
+            fos.flush();
+            fos.close();
+            input.close();
+            conn.disconnect();
+
+            if (!output.exists() ||
+                    output.length() == 0) {
+
+                throw new Exception(
+                        "Downloaded dubbed video is empty"
+                );
+            }
+
+            Log.d(
+                    "VideoDubbing",
+                    "DUBBED VIDEO DOWNLOADED: " +
+                            output.getAbsolutePath() +
+                            " (" +
+                            output.length() +
+                            " bytes)"
+            );
+
+            return output;
+        }
+
+        private Uri saveDubbedVideoToDownloads(File videoFile)
+                throws Exception {
+
+            String fileName =
+                    "Dubbed_Video_" +
+                            System.currentTimeMillis() +
+                            ".mp4";
+
+            ContentValues values =
+                    new ContentValues();
+
+            values.put(
+                    MediaStore.Video.Media.DISPLAY_NAME,
+                    fileName
+            );
+
+            values.put(
+                    MediaStore.Video.Media.MIME_TYPE,
+                    "video/mp4"
+            );
+
+            if (android.os.Build.VERSION.SDK_INT >=
+                    android.os.Build.VERSION_CODES.Q) {
+
+                values.put(
+                        MediaStore.Video.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_MOVIES +
+                                "/VideoDubbing"
+                );
+
+                values.put(
+                        MediaStore.Video.Media.IS_PENDING,
+                        1
+                );
+            }
+
+            Uri collection;
+
+            if (android.os.Build.VERSION.SDK_INT >=
+                    android.os.Build.VERSION_CODES.Q) {
+
+                collection =
+                        MediaStore.Video.Media.getContentUri(
+                                MediaStore.VOLUME_EXTERNAL_PRIMARY
+                        );
+
+            } else {
+
+                collection =
+                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+            }
+
+            Uri uri =
+                    getContentResolver().insert(
+                            collection,
+                            values
+                    );
+
+            if (uri == null) {
+                throw new Exception(
+                        "Could not create Downloads video entry"
+                );
+            }
+
+            try {
+
+                OutputStream output =
+                        getContentResolver()
+                                .openOutputStream(uri);
+
+                if (output == null) {
+                    throw new Exception(
+                            "Could not open output stream"
+                    );
+                }
+
+                InputStream input =
+                        new FileInputStream(videoFile);
+
+                byte[] buffer = new byte[8192];
+                int read;
+
+                while ((read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                }
+
+                output.flush();
+                output.close();
+                input.close();
+
+                if (android.os.Build.VERSION.SDK_INT >=
+                        android.os.Build.VERSION_CODES.Q) {
+
+                    ContentValues complete =
+                            new ContentValues();
+
+                    complete.put(
+                            MediaStore.Video.Media.IS_PENDING,
+                            0
+                    );
+
+                    getContentResolver().update(
+                            uri,
+                            complete,
+                            null,
+                            null
+                    );
+                }
+
+                Log.d(
+                        "VideoDubbing",
+                        "DUBBED VIDEO SAVED: " +
+                                uri.toString()
+                );
+
+                return uri;
+
+            } catch (Exception e) {
+
+                getContentResolver().delete(
+                        uri,
+                        null,
+                        null
+                );
+
+                throw e;
+            }
+        }
+
+        private void logTtsFormat(File ttsFile) {
+            MediaExtractor extractor = new MediaExtractor();
+
+            try {
+                extractor.setDataSource(
+                        ttsFile.getAbsolutePath()
+                );
+
+                for (int i = 0;
+                     i < extractor.getTrackCount();
+                     i++) {
+
+                    MediaFormat format =
+                            extractor.getTrackFormat(i);
+
+                    String mime =
+                            format.containsKey(
+                                    MediaFormat.KEY_MIME)
+                                    ? format.getString(
+                                            MediaFormat.KEY_MIME)
+                                    : null;
+
+                    if (mime != null &&
+                            mime.startsWith("audio/")) {
+
+                        String details =
+                                "TTS format: " +
+                                        mime +
+                                        ", sampleRate=" +
+                                        (format.containsKey(
+                                                MediaFormat.KEY_SAMPLE_RATE)
+                                                ? format.getInteger(
+                                                        MediaFormat.KEY_SAMPLE_RATE)
+                                                : -1) +
+                                        ", channels=" +
+                                        (format.containsKey(
+                                                MediaFormat.KEY_CHANNEL_COUNT)
+                                                ? format.getInteger(
+                                                        MediaFormat.KEY_CHANNEL_COUNT)
+                                                : -1);
+
+                        Log.d(
+                                "VideoDubbing",
+                                details
+                        );
+
+                        return;
+                    }
+                }
+
+                Log.d(
+                        "VideoDubbing",
+                        "TTS audio track not found"
+                );
+
+            } catch (Exception e) {
+
+                Log.e(
+                        "VideoDubbing",
+                        "TTS format check failed",
+                        e
+                );
+
+            } finally {
+                extractor.release();
+            }
+        }
+
+
+        private void requestTranslationTts(
+                String transcript,
+                JSONArray segments,
+                String originalLanguage,
+                String dubLanguage,
+                String videoFile,
+                String role
+        ) {
+
+            new Thread(() -> {
+
+                HttpURLConnection translationConn = null;
+
+                try {
+
+                    URL url = new URL(
+                            "https://video-dubbing-apk.onrender.com/translate-tts"
+                    );
+
+                    translationConn =
+                            (HttpURLConnection)
+                                    url.openConnection();
+
+                    translationConn.setRequestMethod("POST");
+                    translationConn.setDoOutput(true);
+                    translationConn.setDoInput(true);
+                    translationConn.setConnectTimeout(30000);
+                    translationConn.setReadTimeout(600000);
+
+                    translationConn.setRequestProperty(
+                            "Content-Type",
+                            "application/json; charset=UTF-8"
+                    );
+
+                    JSONObject request =
+                            new JSONObject();
+
+                    request.put(
+                            "transcript",
+                            transcript
+                    );
+
+                    request.put(
+                            "segments",
+                            segments
+                    );
+
+                    String direction;
+
+                    if ("ta".equalsIgnoreCase(originalLanguage)
+                            && "en".equalsIgnoreCase(dubLanguage)) {
+
+                        direction = "ta-en";
+
+                    } else if ("en".equalsIgnoreCase(originalLanguage)
+                            && "ta".equalsIgnoreCase(dubLanguage)) {
+
+                        direction = "en-ta";
+
+                    } else if ("ta".equalsIgnoreCase(dubLanguage)) {
+
+                        direction = "en-ta";
+
+                    } else {
+
+                        direction = "ta-en";
+                    }
+
+                    request.put(
+                            "direction",
+                            direction
+                    );
+
+                    request.put(
+                            "role",
+                            role
+                    );
+
+                    byte[] body =
+                            request.toString()
+                                    .getBytes("UTF-8");
+
+                    OutputStream output =
+                            translationConn.getOutputStream();
+
+                    output.write(body);
+                    output.flush();
+                    output.close();
+
+                    int code =
+                            translationConn.getResponseCode();
+
+                    InputStream stream =
+                            code >= 400
+                                    ? translationConn.getErrorStream()
+                                    : translationConn.getInputStream();
+
+                    String responseText = "";
+
+                    if (stream != null) {
+
+                        java.util.Scanner scanner =
+                                new java.util.Scanner(
+                                        stream,
+                                        "UTF-8"
+                                ).useDelimiter("\\A");
+
+                        responseText =
+                                scanner.hasNext()
+                                        ? scanner.next()
+                                        : "";
+
+                        scanner.close();
+                    }
+
+                    if (code >= 200 &&
+                            code < 300) {
+
+                        JSONObject result =
+                                new JSONObject(
+                                        responseText
+                                );
+
+                        String translatedText =
+                                result.optString(
+                                        "translated_text",
+                                        ""
+                                );
+
+                        String ttsUrl =
+                                result.optString(
+                                        "tts_url",
+                                        ""
+                                );
+
+                        String ttsFileName =
+                                result.optString(
+                                        "tts_file",
+                                        ""
+                                ).trim();
+
+                        if (translatedText.isEmpty()) {
+                            throw new Exception(
+                                    "Translation is empty"
+                            );
+                        }
+
+                        if (ttsUrl.isEmpty()) {
+                            throw new Exception(
+                                    "TTS URL is empty"
+                            );
+                        }
+
+                        if (ttsFileName.isEmpty()) {
+                            throw new Exception(
+                                    "TTS file name is empty"
+                            );
+                        }
+
+                        Log.d(
+                                "VideoDubbing",
+                                "TRANSLATED: " +
+                                        translatedText
+                        );
+
+                        Log.d(
+                                "VideoDubbing",
+                                "TTS URL: " +
+                                        ttsUrl
+                        );
+
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "setDubbingProgress(" +
+                                                JSONObjectQuote(
+                                                        "Downloading voice"
+                                                ) +
+                                                ",92)",
+                                        null
+                                )
+                        );
+
+                        File ttsFile =
+                                downloadTtsAudio(ttsUrl);
+
+                        logTtsFormat(ttsFile);
+
+                        Log.d(
+                                "VideoDubbing",
+                                "TTS FILE READY: " +
+                                        ttsFile.getAbsolutePath()
+                        );
+
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "setDubbingProgress(" +
+                                                JSONObjectQuote(
+                                                        "Voice downloaded"
+                                                ) +
+                                                ",94)",
+                                        null
+                                )
+                        );
+
+                        // STEP 5: Merge original video + generated TTS
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "setDubbingProgress(" +
+                                                JSONObjectQuote(
+                                                        "Merging dubbed video..."
+                                                ) +
+                                                ",96)",
+                                        null
+                                )
+                        );
+
+                        JSONObject mergeRequest =
+                                new JSONObject();
+
+                        mergeRequest.put(
+                                "video_file",
+                                videoFile
+                        );
+
+                        mergeRequest.put(
+                                "tts_file",
+                                ttsFileName
+                        );
+
+                        URL mergeUrl = new URL(
+                                "https://video-dubbing-apk.onrender.com/merge-video-audio"
+                        );
+
+                        byte[] mergeBody =
+                                mergeRequest.toString()
+                                        .getBytes("UTF-8");
+
+                        HttpURLConnection mergeConn = null;
+                        int mergeCode = -1;
+                        Exception lastMergeError = null;
+
+                        for (int mergeAttempt = 1; mergeAttempt <= 3; mergeAttempt++) {
+                            try {
+                                if (mergeAttempt > 1) {
+                                    Thread.sleep(2000);
+                                }
+
+                                mergeConn =
+                                        (HttpURLConnection)
+                                                mergeUrl.openConnection();
+
+                                mergeConn.setRequestMethod("POST");
+                                mergeConn.setDoOutput(true);
+                                mergeConn.setDoInput(true);
+                                mergeConn.setConnectTimeout(30000);
+                                mergeConn.setReadTimeout(600000);
+                                mergeConn.setRequestProperty(
+                                        "Content-Type",
+                                        "application/json; charset=UTF-8"
+                                );
+
+                                OutputStream mergeOutput =
+                                        mergeConn.getOutputStream();
+
+                                mergeOutput.write(mergeBody);
+                                mergeOutput.flush();
+                                mergeOutput.close();
+
+                                mergeCode =
+                                        mergeConn.getResponseCode();
+
+                                lastMergeError = null;
+                                break;
+
+                            } catch (Exception mergeRetryError) {
+                                android.util.Log.e(
+                                        "VideoDubbing",
+                                        "MERGE ATTEMPT " + mergeAttempt +
+                                                " FAILED: " +
+                                                mergeRetryError.toString(),
+                                        mergeRetryError
+                                );
+
+                                lastMergeError = mergeRetryError;
+
+                                if (mergeConn != null) {
+                                    mergeConn.disconnect();
+                                    mergeConn = null;
+                                }
+                            }
+                        }
+
+                        if (lastMergeError != null) {
+                            throw lastMergeError;
+                        }
+
+                        InputStream mergeStream =
+                                mergeCode >= 400
+                                        ? mergeConn.getErrorStream()
+                                        : mergeConn.getInputStream();
+
+                        String mergeResponseText = "";
+
+                        if (mergeStream != null) {
+                            java.util.Scanner mergeScanner =
+                                    new java.util.Scanner(
+                                            mergeStream,
+                                            "UTF-8"
+                                    ).useDelimiter("\\A");
+
+                            mergeResponseText =
+                                    mergeScanner.hasNext()
+                                            ? mergeScanner.next()
+                                            : "";
+
+                            mergeScanner.close();
+                        }
+
+                        if (mergeCode < 200 ||
+                                mergeCode >= 300) {
+
+                            throw new Exception(
+                                    "Video merge HTTP " +
+                                            mergeCode +
+                                            ": " +
+                                            mergeResponseText
+                            );
+                        }
+
+                        JSONObject mergeResult =
+                                new JSONObject(
+                                        mergeResponseText
+                                );
+
+                        String dubbedVideoUrl =
+                                mergeResult.optString(
+                                        "dubbed_video_url",
+                                        ""
+                                ).trim();
+
+                        if (dubbedVideoUrl.isEmpty()) {
+                            throw new Exception(
+                                    "Dubbed video URL is empty"
+                            );
+                        }
+
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "setDubbingProgress(" +
+                                                JSONObjectQuote(
+                                                        "Dubbed video created"
+                                                ) +
+                                                ",98)",
+                                        null
+                                )
+                        );
+
+                        // STEP 6: Download final dubbed MP4
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "setDubbingProgress(" +
+                                                JSONObjectQuote(
+                                                        "Downloading final video..."
+                                                ) +
+                                                ",99)",
+                                        null
+                                )
+                        );
+
+                        File finalDubbedVideo =
+                                downloadDubbedVideo(
+                                        dubbedVideoUrl
+                                );
+
+                        // STEP 7: Save final MP4 to Movies/VideoDubbing
+                        Uri savedVideoUri =
+                                saveDubbedVideoToDownloads(
+                                        finalDubbedVideo
+                                );
+
+                        Log.d(
+                                "VideoDubbing",
+                                "FINAL VIDEO URI: " +
+                                        savedVideoUri
+                        );
+
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "setDubbingProgress(" +
+                                                JSONObjectQuote(
+                                                        "Dubbed video saved successfully"
+                                                ) +
+                                                ",100)",
+                                        null
+                                )
+                        );
+
+                    } else {
+
+                        final String error =
+                                "Translation/TTS HTTP " +
+                                        code +
+                                        ": " +
+                                        responseText;
+
+                        webView.post(() ->
+                                webView.evaluateJavascript(
+                                        "nativeUploadError(" +
+                                                JSONObjectQuote(
+                                                        error
+                                                ) +
+                                                ")",
+                                        null
+                                )
+                        );
+                    }
+
+                } catch (Exception e) {
+
+                    final String error =
+                            e.getClass().getSimpleName() +
+                                    ": " +
+                                    e.getMessage();
+
+                    webView.post(() ->
+                            webView.evaluateJavascript(
+                                    "nativeUploadError(" +
+                                            JSONObjectQuote(
+                                                    error
+                                            ) +
+                                            ")",
+                                    null
+                            )
+                    );
+
+                } finally {
+
+                    if (translationConn != null) {
+                        translationConn.disconnect();
+                    }
+                }
+
+            }).start();
+        }
+
+
         @JavascriptInterface
         public void synthesizeTamil(String text) {
 
@@ -1345,6 +2265,15 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) {
                 }
             }
+
+
+            String name =
+                    getFileName(selectedMediaUri);
+
+            sendToJavaScript(
+                    "nativeMediaSelected",
+                    name
+            );
 
             filePathCallback.onReceiveValue(results);
             filePathCallback = null;

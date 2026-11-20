@@ -9,6 +9,7 @@ import subprocess
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 GROQ_API_KEY = ""
+GOOGLE_TRANSLATE_API_KEY = ""
 env_path = os.path.join(BASE_DIR, ".env")
 if os.path.exists(env_path):
     with open(env_path, encoding="utf-8") as f:
@@ -19,6 +20,10 @@ if os.path.exists(env_path):
                 break
 if not GROQ_API_KEY:
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+GOOGLE_TRANSLATE_API_KEY = os.environ.get(
+    "GOOGLE_TRANSLATE_API_KEY", ""
+)
 if GROQ_API_KEY:
     print("GROQ_API_KEY: configured")
 else:
@@ -42,7 +47,9 @@ def ensure_whisper_model():
     print("WHISPER MODEL: download complete", flush=True)
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-ensure_whisper_model()
+
+if not GROQ_API_KEY:
+    ensure_whisper_model()
 
 
 
@@ -58,10 +65,408 @@ def transcribe_with_groq(audio_path):
         transcription = client.audio.transcriptions.create(
             file=audio_file,
             model="whisper-large-v3-turbo",
-            response_format="text"
+            response_format="verbose_json",
+            timestamp_granularities=["segment"]
         )
 
     return transcription
+
+
+def clean_transcript(text):
+    """
+    Light cleanup for Whisper output before translation.
+    Removes obvious immediate repeated words/phrases and normalizes spacing.
+    Supports Tamil and English Unicode text.
+    """
+    import re
+
+    text = str(text or "").strip()
+    if not text:
+        return ""
+
+    # Normalize whitespace.
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{2,}", "\n", text).strip()
+
+    # Remove immediately repeated identical words using Unicode-safe token logic.
+    words = text.split()
+    cleaned_words = []
+
+    for word in words:
+        if cleaned_words and word.casefold() == cleaned_words[-1].casefold():
+            continue
+        cleaned_words.append(word)
+
+    text = " ".join(cleaned_words)
+
+    # Remove immediately repeated complete sentences/phrases.
+    sentences = re.split(r"(?<=[.!?。！？])\s+", text)
+    cleaned_sentences = []
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+
+        if (
+            cleaned_sentences
+            and sentence.casefold() == cleaned_sentences[-1].casefold()
+        ):
+            continue
+
+        cleaned_sentences.append(sentence)
+
+    return " ".join(cleaned_sentences)
+
+
+def split_dialogue_segments(text, max_chars=500):
+    """
+    Split a movie transcript into reasonably sized dialogue segments.
+    Keeps punctuation-based boundaries and avoids creating huge translation chunks.
+    """
+    text = str(text or "").strip()
+    if not text:
+        return []
+
+    import re
+
+    # Normalize obvious Whisper spacing/repetition issues.
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{2,}", "\n", text).strip()
+
+    # First split on line breaks and common sentence-ending punctuation.
+    parts = re.split(r"(?<=[.!?。！？])\s+|\n+", text)
+
+    segments = []
+    current = ""
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        if not current:
+            current = part
+        elif len(current) + 1 + len(part) <= max_chars:
+            current += " " + part
+        else:
+            segments.append(current.strip())
+            current = part
+
+    if current:
+        segments.append(current.strip())
+
+    return segments
+
+
+
+def detect_dialogue_roles(text):
+    """
+    Use the LLM to classify each movie dialogue segment as:
+    Hero, Heroine, Villain, or Other.
+
+    Returns a list of dictionaries:
+    [{"text": "...", "role": "Hero"}, ...]
+    """
+    segments = split_dialogue_segments(text)
+
+    if not segments:
+        return []
+
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is not configured")
+
+    from groq import Groq
+    client = Groq(api_key=GROQ_API_KEY)
+
+    numbered = "\n".join(
+        f"{i + 1}. {segment}"
+        for i, segment in enumerate(segments)
+    )
+
+    prompt = f"""
+Classify the speaker role of each movie dialogue line.
+
+Possible roles:
+- Hero
+- Heroine
+- Villain
+- Other
+
+Use the dialogue context and wording to make the best inference.
+Do not change any dialogue.
+Do not add explanations.
+
+Return ONLY valid JSON in this exact structure:
+[
+  {{"index": 1, "role": "Hero"}},
+  {{"index": 2, "role": "Other"}}
+]
+
+DIALOGUES:
+{numbered}
+"""
+
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a movie dialogue character classifier. "
+                    "Classify each line into exactly one of: "
+                    "Hero, Heroine, Villain, Other."
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.2,
+        max_completion_tokens=1024,
+        include_reasoning=False
+    )
+
+    raw = response.choices[0].message.content.strip()
+
+    try:
+        classifications = json.loads(raw)
+    except Exception as e:
+        raise RuntimeError(
+            "Character role classification returned invalid JSON: "
+            + str(e)
+        )
+
+    role_map = {
+        "hero": "Hero",
+        "heroine": "Heroine",
+        "villain": "Villain",
+        "other": "Other"
+    }
+
+    result = []
+
+    for i, segment in enumerate(segments):
+        assigned = "Other"
+
+        for item in classifications:
+            if int(item.get("index", -1)) == i + 1:
+                assigned = role_map.get(
+                    str(item.get("role", "Other")).strip().lower(),
+                    "Other"
+                )
+                break
+
+        result.append({
+            "text": segment,
+            "role": assigned
+        })
+
+    print(
+        f"MULTI VOICE: classified {len(result)} dialogue segments",
+        flush=True
+    )
+
+    return result
+
+
+def google_translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
+    """
+    Google Cloud Translation REST API.
+    Uses an API key from GOOGLE_TRANSLATE_API_KEY.
+    """
+    if not text.strip():
+        return ""
+
+    if not GOOGLE_TRANSLATE_API_KEY:
+        raise RuntimeError("GOOGLE_TRANSLATE_API_KEY is not configured")
+
+    if src_lang == "tam_Taml":
+        source = "ta"
+    elif src_lang == "eng_Latn":
+        source = "en"
+    else:
+        raise RuntimeError(f"Unsupported Google source language: {src_lang}")
+
+    if tgt_lang == "tam_Taml":
+        target = "ta"
+    elif tgt_lang == "eng_Latn":
+        target = "en"
+    else:
+        raise RuntimeError(f"Unsupported Google target language: {tgt_lang}")
+
+    import urllib.request
+    import urllib.parse
+
+    url = (
+        "https://translation.googleapis.com/language/translate/v2"
+        "?key=" + urllib.parse.quote(GOOGLE_TRANSLATE_API_KEY)
+    )
+
+    payload = urllib.parse.urlencode({
+        "q": text,
+        "source": source,
+        "target": target,
+        "format": "text"
+    }).encode("utf-8")
+
+    request = urllib.request.Request(
+        url,
+        data=payload,
+        method="POST",
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+        }
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception as e:
+        raise RuntimeError(f"Google Translate request failed: {e}")
+
+    try:
+        translated = data["data"]["translations"][0]["translatedText"].strip()
+    except Exception:
+        raise RuntimeError(
+            "Google Translate returned an unexpected response: "
+            + json.dumps(data, ensure_ascii=False)[:2000]
+        )
+
+    if not translated:
+        raise RuntimeError("Google Translate returned empty translation")
+
+    return translated
+
+
+def translate_movie_dialogue(text, src_lang="tam_Taml", tgt_lang="eng_Latn", role="Other"):
+    """
+    Context-aware movie dialogue translation.
+
+    Each segment is translated with previous/current/next dialogue context,
+    while returning one clean translated text for the existing TTS pipeline.
+    """
+    segments = split_dialogue_segments(text)
+
+    if not segments:
+        return ""
+
+    if len(segments) == 1:
+        return translate_text(
+            segments[0],
+            src_lang=src_lang,
+            tgt_lang=tgt_lang
+        )
+
+    from groq import Groq
+
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is not configured")
+
+    client = Groq(api_key=GROQ_API_KEY)
+
+    role = str(role or "Other").strip().lower()
+
+    if role == "hero":
+        role_instruction = (
+            "The speaker is the Hero. Use confident, natural, conversational "
+            "wording appropriate for a movie hero."
+        )
+    elif role == "heroine":
+        role_instruction = (
+            "The speaker is the Heroine. Use natural, expressive, conversational "
+            "wording appropriate for a movie heroine."
+        )
+    elif role == "villain":
+        role_instruction = (
+            "The speaker is the Villain. Use controlled, intimidating, assertive "
+            "wording when the meaning allows it. Do not change the original meaning."
+        )
+    else:
+        role_instruction = (
+            "The speaker is Other. Use natural, neutral movie dialogue wording."
+        )
+
+    if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
+        system_prompt = (
+            "You are a professional movie dialogue translator. "
+            "Translate Tamil dialogue into natural spoken English. "
+            "Preserve meaning, emotion, attitude, character intent, "
+            "and conversational style. Do not translate literally when "
+            "a natural movie expression is better. "
+            + role_instruction +
+            " Return ONLY the translation."
+        )
+    elif src_lang == "eng_Latn" and tgt_lang == "tam_Taml":
+        system_prompt = (
+            "You are a professional movie dialogue translator. "
+            "Translate English dialogue into natural spoken Tamil suitable "
+            "for movie dubbing. Preserve meaning, emotion, attitude, "
+            "character intent, and conversational style. "
+            + role_instruction +
+            " Return ONLY the translation."
+        )
+    else:
+        raise RuntimeError(
+            f"Unsupported translation direction: {src_lang} -> {tgt_lang}"
+        )
+
+    translated_segments = []
+
+    for i, current in enumerate(segments):
+        previous = segments[i - 1] if i > 0 else ""
+        following = segments[i + 1] if i + 1 < len(segments) else ""
+
+        prompt = f"""
+Translate the CURRENT movie dialogue naturally.
+
+PREVIOUS DIALOGUE:
+{previous}
+
+CURRENT DIALOGUE:
+{current}
+
+NEXT DIALOGUE:
+{following}
+
+Use the previous and next dialogue only as context to understand:
+- who/what the speaker is referring to
+- pronouns and implied meaning
+- emotion and conversation flow
+- natural movie dialogue style
+
+Do NOT translate the previous or next dialogue.
+Translate ONLY the CURRENT DIALOGUE.
+Return ONLY the translated dialogue.
+"""
+
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.6,
+            max_completion_tokens=512,
+            include_reasoning=False
+        )
+
+        translated = response.choices[0].message.content.strip()
+
+        if not translated:
+            raise RuntimeError(
+                f"Empty translation returned for segment {i + 1}"
+            )
+
+        translated_segments.append(translated)
+
+        print(
+            f"SMART TRANSLATION: segment {i + 1}/{len(segments)}",
+            flush=True
+        )
+
+    return "\n".join(translated_segments)
 
 
 def translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
@@ -162,6 +567,32 @@ def merge_video_audio(video_path, audio_path, output_path):
     return output_path
 
 
+
+def get_multivoice_voice(role, direction):
+    """
+    Select a different TTS voice for each detected movie character.
+    """
+    role = str(role or "Other").strip().lower()
+    direction = str(direction or "ta-en").strip().lower()
+
+    if direction == "ta-en":
+        voices = {
+            "hero": "en-US-AndrewNeural",
+            "heroine": "en-US-AvaNeural",
+            "villain": "en-US-ChristopherNeural",
+            "other": "en-US-BrianNeural",
+        }
+    else:
+        voices = {
+            "hero": "ta-IN-ValluvarNeural",
+            "heroine": "ta-IN-PallaviNeural",
+            "villain": "ta-IN-ValluvarNeural",
+            "other": "ta-IN-PallaviNeural",
+        }
+
+    return voices.get(role, voices["other"])
+
+
 def synthesize_tts(text, output_path, voice="en-US-JennyNeural"):
     if not text.strip():
         raise RuntimeError("TTS text is empty")
@@ -190,6 +621,194 @@ def synthesize_tts(text, output_path, voice="en-US-JennyNeural"):
         raise RuntimeError("TTS output file was not created")
 
     return output_path
+
+
+def build_timestamped_dubbed_audio(
+    segments,
+    src_lang,
+    tgt_lang,
+    voice
+):
+    """
+    Translate each timestamped segment, synthesize each segment,
+    delay it to its original start time, and mix all segments
+    into one dubbed audio track.
+    """
+
+    if not segments:
+        raise RuntimeError("No timestamped segments available")
+
+    work_dir = os.path.join(
+        UPLOAD_DIR,
+        "dub_" + uuid.uuid4().hex
+    )
+    os.makedirs(work_dir, exist_ok=True)
+
+    segment_files = []
+    translated_segments = []
+
+    try:
+        total = len(segments)
+
+        for i, seg in enumerate(segments):
+            text = str(
+                seg.get("text", "")
+            ).strip()
+
+            if not text:
+                continue
+
+            start = float(
+                seg.get("start", 0)
+            )
+
+            end = float(
+                seg.get("end", start)
+            )
+
+            if end <= start:
+                end = start + 0.5
+
+            print(
+                f"DUB SEGMENT {i + 1}/{total}: "
+                f"{start:.2f}s -> {end:.2f}s",
+                flush=True
+            )
+
+            translated = translate_movie_dialogue(
+                text,
+                src_lang=src_lang,
+                tgt_lang=tgt_lang,
+                role="Other"
+            ).strip()
+
+            if not translated:
+                continue
+
+            translated_segments.append({
+                "id": int(seg.get("id", i)),
+                "start": start,
+                "end": end,
+                "text": text,
+                "translated_text": translated
+            })
+
+            tts_name = (
+                f"segment_{i}_{uuid.uuid4().hex}.mp3"
+            )
+
+            tts_path = os.path.join(
+                work_dir,
+                tts_name
+            )
+
+            synthesize_tts(
+                translated,
+                tts_path,
+                voice=voice
+            )
+
+            segment_files.append(
+                (start, tts_path)
+            )
+
+        if not segment_files:
+            raise RuntimeError(
+                "No segment TTS audio was generated"
+            )
+
+        inputs = []
+        filters = []
+
+        for i, (start, path) in enumerate(segment_files):
+            inputs.extend([
+                "-i",
+                path
+            ])
+
+            delay_ms = max(
+                0,
+                int(round(start * 1000))
+            )
+
+            filters.append(
+                f"[{i}:a]"
+                f"adelay={delay_ms}:all=1"
+                f"[a{i}]"
+            )
+
+        labels = "".join(
+            f"[a{i}]"
+            for i in range(len(segment_files))
+        )
+
+        filters.append(
+            f"{labels}"
+            f"amix=inputs={len(segment_files)}:"
+            f"duration=longest:"
+            f"dropout_transition=0,"
+            f"loudnorm=I=-16:TP=-1.5:LRA=11"
+            f"[out]"
+        )
+
+        output_name = (
+            "timestamped_tts_" +
+            uuid.uuid4().hex +
+            ".mp3"
+        )
+
+        output_path = os.path.join(
+            UPLOAD_DIR,
+            output_name
+        )
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-y",
+            *inputs,
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "[out]",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            output_path
+        ]
+
+        result = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Timestamp audio mix failed: " +
+                result.stdout[-3000:]
+            )
+
+        if (
+            not os.path.exists(output_path)
+            or os.path.getsize(output_path) == 0
+        ):
+            raise RuntimeError(
+                "Timestamped TTS output was not created"
+            )
+
+        return (
+            output_name,
+            translated_segments
+        )
+
+    finally:
+        import shutil
+        shutil.rmtree(
+            work_dir,
+            ignore_errors=True
+        )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -301,9 +920,18 @@ class Handler(BaseHTTPRequestHandler):
                 data.get("transcript", "")
             ).strip()
 
+            segments = data.get("segments", [])
+
+            if not isinstance(segments, list):
+                segments = []
+
             direction = str(
                 data.get("direction", "ta-en")
             ).strip().lower()
+
+            role = str(
+                data.get("role", "Other")
+            ).strip()
 
             if direction == "ta-en":
                 src_lang = "tam_Taml"
@@ -331,16 +959,31 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
 
+            transcript = clean_transcript(transcript)
+
             try:
                 print(
-                    "TRANSLATION: translating...",
+                    "TRANSLATION/TTS: processing timestamped segments...",
                     flush=True
                 )
 
-                translated_text = translate_text(
-                    transcript,
-                    src_lang=src_lang,
-                    tgt_lang=tgt_lang
+                if not segments:
+                    raise RuntimeError(
+                        "Timestamped segments are missing"
+                    )
+
+                tts_name, translated_segments = (
+                    build_timestamped_dubbed_audio(
+                        segments,
+                        src_lang=src_lang,
+                        tgt_lang=tgt_lang,
+                        voice=tts_voice
+                    )
+                )
+
+                translated_text = "\n".join(
+                    item["translated_text"]
+                    for item in translated_segments
                 )
 
                 if not translated_text:
@@ -349,31 +992,16 @@ class Handler(BaseHTTPRequestHandler):
                     )
 
                 print(
-                    f"TTS: generating {tts_label} voice...",
+                    "TTS: timestamped dubbed audio ready",
                     flush=True
-                )
-
-                tts_name = (
-                    "tts_" +
-                    uuid.uuid4().hex +
-                    ".mp3"
-                )
-
-                tts_path = os.path.join(
-                    UPLOAD_DIR,
-                    tts_name
-                )
-
-                synthesize_tts(
-                    translated_text,
-                    tts_path,
-                    voice=tts_voice
                 )
 
                 self.send_json({
                     "status": "translated_tts",
                     "translated_text":
                         translated_text,
+                    "segments":
+                        translated_segments,
                     "tts_file":
                         tts_name,
                     "tts_url":
@@ -524,7 +1152,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             boundary = marker.split("boundary=", 1)[-1].strip().strip('"').encode()
+
+            # Read multipart body once.
+            # Keep the existing Android multipart format compatible.
             body = self.rfile.read(content_length)
+
             audio_data = None
             video_data = None
 
@@ -535,7 +1167,15 @@ class Handler(BaseHTTPRequestHandler):
                     continue
 
                 headers = part[:header_end]
-                content = part[header_end + 4:].rstrip(b"\r\n-")
+                content = part[header_end + 4:]
+
+                # Remove only multipart CRLF/boundary padding.
+                if content.endswith(b"\r\n"):
+                    content = content[:-2]
+                if content.endswith(b"--"):
+                    content = content[:-2]
+                if content.endswith(b"\r\n"):
+                    content = content[:-2]
 
                 if b'name="audio"' in headers:
                     audio_data = content
@@ -563,19 +1203,79 @@ class Handler(BaseHTTPRequestHandler):
                 with open(video_path, "wb") as f:
                     f.write(video_data)
 
+                print(
+                    f"VIDEO UPLOAD OK: {video_name} ({len(video_data)} bytes)",
+                    flush=True
+                )
+
             with open(audio_path, "wb") as f:
                 f.write(audio_data)
 
+            print(
+                f"AUDIO UPLOAD OK: {audio_name} ({len(audio_data)} bytes)",
+                flush=True
+            )
+
+            # Normalize uploaded audio for Groq Whisper.
+            # Android may send the source audio at arbitrary sample rate/channels.
+            normalized_audio_path = audio_path + ".16k.wav"
+
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                audio_path,
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                normalized_audio_path
+            ]
+
+            ffmpeg_result = subprocess.run(
+                ffmpeg_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            if ffmpeg_result.returncode != 0:
+                raise RuntimeError(
+                    "Audio normalization failed: " +
+                    ffmpeg_result.stderr[-2000:]
+                )
+
+            audio_path = normalized_audio_path
+
             try:
+                groq_segments = []
+
                 if GROQ_API_KEY:
                     transcription_mode = "GROQ"
                     print("TRANSCRIPTION MODE: GROQ", flush=True)
 
-                    transcript = transcribe_with_groq(audio_path)
-                    transcript = str(transcript).strip()
+                    groq_result = transcribe_with_groq(audio_path)
+
+                    if not groq_result:
+                        raise RuntimeError("Groq transcription returned empty result")
+
+                    transcript = str(
+                        getattr(groq_result, "text", "") or ""
+                    ).strip()
 
                     if not transcript:
-                        raise RuntimeError("Groq transcription returned empty result")
+                        raise RuntimeError("Groq transcription text is empty")
+
+                    groq_segments = getattr(
+                        groq_result, "segments", None
+                    ) or []
+
+                    print(
+                        f"GROQ: received {len(groq_segments)} timestamped segments",
+                        flush=True
+                    )
 
                 else:
                     transcription_mode = "LOCAL_WHISPER"
@@ -616,13 +1316,26 @@ class Handler(BaseHTTPRequestHandler):
                 print("TRANSCRIPT:", flush=True)
                 print(transcript, flush=True)
 
-                self.send_json({
+                response_data = {
                     "status": "transcribed",
                     "transcript": transcript,
                     "transcript_file": os.path.basename(transcript_path),
                     "transcription_mode": transcription_mode,
                     "video_file": video_name
-                })
+                }
+
+                if transcription_mode == "GROQ":
+                    response_data["segments"] = [
+                        {
+                            "id": int(getattr(seg, "id", 0)),
+                            "start": float(getattr(seg, "start", 0)),
+                            "end": float(getattr(seg, "end", 0)),
+                            "text": str(getattr(seg, "text", "")).strip()
+                        }
+                        for seg in (groq_segments or [])
+                    ]
+
+                self.send_json(response_data)
 
             except Exception as e:
                 print("TRANSCRIPTION ERROR:", repr(e), flush=True)
@@ -839,12 +1552,17 @@ class Handler(BaseHTTPRequestHandler):
         print("TRANSCRIPT:")
         print(transcript)
 
+        transcript = clean_transcript(transcript)
+
+        print("CLEANED TRANSCRIPT:")
+        print(transcript)
+
         # -----------------------------
         # 5. TRANSLATION
         # -----------------------------
         print("TRANSLATION: translating...")
         try:
-            translated_text = translate_text(
+            translated_text = translate_movie_dialogue(
                 transcript,
                 src_lang="tam_Taml",
                 tgt_lang="eng_Latn"
