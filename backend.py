@@ -655,7 +655,19 @@ def build_timestamped_dubbed_audio(
                 seg.get("text", "")
             ).strip()
 
+            print(
+                f"DUB INPUT SEGMENT {i + 1}/{total}: "
+                f"text={text!r}, "
+                f"start={seg.get('start')!r}, "
+                f"end={seg.get('end')!r}",
+                flush=True
+            )
+
             if not text:
+                print(
+                    f"DUB SKIP EMPTY SEGMENT {i + 1}",
+                    flush=True
+                )
                 continue
 
             start = float(
