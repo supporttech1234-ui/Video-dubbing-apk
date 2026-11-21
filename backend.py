@@ -534,6 +534,36 @@ English dialogue:
     return translated
 
 def merge_video_audio(video_path, audio_path, output_path):
+    duration_cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+
+    duration_result = subprocess.run(
+        duration_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+
+    if duration_result.returncode != 0:
+        raise RuntimeError(
+            "Could not determine video duration"
+        )
+
+    video_duration = float(
+        duration_result.stdout.strip()
+    )
+
+    print(
+        f"FFMPEG: original video duration = "
+        f"{video_duration:.2f}s",
+        flush=True
+    )
+
     cmd = [
         "ffmpeg",
         "-y",
@@ -541,10 +571,11 @@ def merge_video_audio(video_path, audio_path, output_path):
         "-i", audio_path,
         "-map", "0:v:0",
         "-map", "1:a:0",
+        "-af", "apad",
         "-c:v", "copy",
         "-c:a", "aac",
         "-b:a", "192k",
-        "-shortest",
+        "-t", f"{video_duration:.3f}",
         output_path
     ]
 
@@ -561,7 +592,10 @@ def merge_video_audio(video_path, audio_path, output_path):
     if result.returncode != 0:
         raise RuntimeError("Video/audio merge failed")
 
-    if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+    if (
+        not os.path.exists(output_path)
+        or os.path.getsize(output_path) == 0
+    ):
         raise RuntimeError("Merged video was not created")
 
     return output_path
