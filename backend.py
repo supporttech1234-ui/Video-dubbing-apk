@@ -569,9 +569,14 @@ def merge_video_audio(video_path, audio_path, output_path):
         "-y",
         "-i", video_path,
         "-i", audio_path,
+        "-filter_complex",
+        "[0:a]volume=0.15[orig];"
+        "[1:a]volume=1.0[dub];"
+        "[orig][dub]amix=inputs=2:duration=longest:"
+        "dropout_transition=0,"
+        "loudnorm=I=-16:TP=-1.5:LRA=11[out]",
         "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-af", "apad",
+        "-map", "[out]",
         "-c:v", "copy",
         "-c:a", "aac",
         "-b:a", "192k",
@@ -599,8 +604,6 @@ def merge_video_audio(video_path, audio_path, output_path):
         raise RuntimeError("Merged video was not created")
 
     return output_path
-
-
 
 def get_multivoice_voice(role, direction):
     """
