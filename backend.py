@@ -1049,6 +1049,9 @@ class Handler(BaseHTTPRequestHandler):
             elif filename.endswith(".txt"):
                 content_type = "text/plain; charset=utf-8"
 
+            elif filename.endswith(".srt"):
+                content_type = "application/x-subrip; charset=utf-8"
+
             file_size = os.path.getsize(file_path)
 
             self.send_response(200)
@@ -1104,6 +1107,9 @@ class Handler(BaseHTTPRequestHandler):
             ).strip()
 
             segments = data.get("segments", [])
+            srt_content = str(
+                data.get("srt_content", "")
+            ).strip()
 
             if not isinstance(segments, list):
                 segments = []
@@ -1149,6 +1155,70 @@ class Handler(BaseHTTPRequestHandler):
                     "TRANSLATION/TTS: processing timestamped segments...",
                     flush=True
                 )
+
+                if srt_content:
+                    import re
+
+                    def parse_srt_timestamp(value):
+                        value = value.strip().replace(",", ".")
+                        parts = value.split(":")
+                        if len(parts) != 3:
+                            raise ValueError(
+                                f"Invalid SRT timestamp: {value}"
+                            )
+                        hours = float(parts[0])
+                        minutes = float(parts[1])
+                        seconds = float(parts[2])
+                        return hours * 3600 + minutes * 60 + seconds
+
+                    srt_segments = []
+                    blocks = re.split(
+                        r"\n\s*\n",
+                        srt_content.replace("\r\n", "\n").replace("\r", "\n").strip()
+                    )
+
+                    for block in blocks:
+                        lines = [
+                            line.strip()
+                            for line in block.split("\n")
+                            if line.strip()
+                        ]
+
+                        if len(lines) < 3:
+                            continue
+
+                        timing_index = 1
+                        if "-->" not in lines[timing_index]:
+                            continue
+
+                        timing = lines[timing_index]
+                        start_text, end_text = [
+                            part.strip()
+                            for part in timing.split("-->", 1)
+                        ]
+
+                        try:
+                            start = parse_srt_timestamp(start_text)
+                            end = parse_srt_timestamp(end_text)
+                        except Exception:
+                            continue
+
+                        text = " ".join(lines[timing_index + 1:]).strip()
+
+                        if text and end > start:
+                            srt_segments.append({
+                                "id": len(srt_segments),
+                                "start": start,
+                                "end": end,
+                                "text": text
+                            })
+
+                    if srt_segments:
+                        segments = srt_segments
+                        print(
+                            f"TRANSLATION/TTS: using SRT timing master ({len(segments)} segments)",
+                            flush=True
+                        )
 
                 usable_segments = []
 
@@ -1207,6 +1277,45 @@ class Handler(BaseHTTPRequestHandler):
                         "Translation returned empty text"
                     )
 
+                translated_srt_name = (
+                    f"translated_{uuid.uuid4().hex}.srt"
+                )
+                translated_srt_path = os.path.join(
+                    UPLOAD_DIR, translated_srt_name
+                )
+
+                def translated_srt_time(seconds):
+                    milliseconds = round(float(seconds) * 1000)
+                    hours = milliseconds // 3600000
+                    minutes = (milliseconds % 3600000) // 60000
+                    seconds_part = (milliseconds % 60000) // 1000
+                    millis = milliseconds % 1000
+                    return (
+                        f"{hours:02}:{minutes:02}:"
+                        f"{seconds_part:02},{millis:03}"
+                    )
+
+                with open(
+                    translated_srt_path, "w", encoding="utf-8"
+                ) as f:
+                    for index, item in enumerate(translated_segments, 1):
+                        text = str(
+                            item.get("translated_text", "")
+                        ).strip()
+                        if not text:
+                            continue
+
+                        start = translated_srt_time(item.get("start", 0))
+                        end = translated_srt_time(item.get("end", 0))
+                        f.write(
+                            f"{index}\\n{start} --> {end}\\n{text}\\n\\n"
+                        )
+
+                print(
+                    f"TRANSLATED SRT CREATED: {translated_srt_name}",
+                    flush=True
+                )
+
                 print(
                     "TTS: timestamped dubbed audio ready",
                     flush=True
@@ -1218,6 +1327,8 @@ class Handler(BaseHTTPRequestHandler):
                         translated_text,
                     "segments":
                         translated_segments,
+                    "translated_srt_file": translated_srt_name,
+                    "translated_srt_url": "/output/" + translated_srt_name,
                     "tts_file":
                         tts_name,
                     "tts_url":
@@ -1375,6 +1486,7 @@ class Handler(BaseHTTPRequestHandler):
 
             audio_data = None
             video_data = None
+            srt_data = None
 
             for part in body.split(b"--" + boundary):
                 header_end = part.find(b"\r\n\r\n")
@@ -1398,6 +1510,8 @@ class Handler(BaseHTTPRequestHandler):
 
                 elif b'name="video"' in headers:
                     video_data = content
+                elif b'name="srt"' in headers:
+                    srt_data = content
 
             if not audio_data:
                 self.send_json({
@@ -1408,6 +1522,16 @@ class Handler(BaseHTTPRequestHandler):
             audio_name = f"audio_{uuid.uuid4().hex}.wav"
             audio_path = os.path.join(UPLOAD_DIR, audio_name)
             transcript_path = audio_path + ".txt"
+            srt_name = ""
+            srt_path = ""
+
+            if srt_data:
+                srt_name = f"subtitle_{uuid.uuid4().hex}.srt"
+                srt_path = os.path.join(UPLOAD_DIR, srt_name)
+                with open(srt_path, "wb") as f:
+                    f.write(srt_data)
+                print(f"SRT UPLOAD OK: {srt_name}", flush=True)
+
 
             video_name = ""
             video_path = ""
@@ -1532,11 +1656,39 @@ class Handler(BaseHTTPRequestHandler):
                 print("TRANSCRIPT:", flush=True)
                 print(transcript, flush=True)
 
+                srt_name = ""
+
+                if transcription_mode == "GROQ" and groq_segments:
+                    def srt_time(seconds):
+                        milliseconds = round(float(seconds) * 1000)
+                        hours = milliseconds // 3600000
+                        minutes = (milliseconds % 3600000) // 60000
+                        seconds_part = (milliseconds % 60000) // 1000
+                        millis = milliseconds % 1000
+                        return f"{hours:02}:{minutes:02}:{seconds_part:02},{millis:03}"
+
+                    srt_name = f"original_{uuid.uuid4().hex}.srt"
+                    srt_path = os.path.join(UPLOAD_DIR, srt_name)
+
+                    with open(srt_path, "w", encoding="utf-8") as f:
+                        for index, seg in enumerate(groq_segments, 1):
+                            text = str(getattr(seg, "text", "")).strip()
+                            if not text:
+                                continue
+                            start = srt_time(getattr(seg, "start", 0))
+                            end = srt_time(getattr(seg, "end", 0))
+                            f.write(f"{index}\n{start} --> {end}\n{text}\n\n")
+
+                    print(f"ORIGINAL SRT CREATED: {srt_name}", flush=True)
+
                 response_data = {
                     "status": "transcribed",
                     "transcript": transcript,
                     "transcript_file": os.path.basename(transcript_path),
                     "transcription_mode": transcription_mode,
+                    "srt_file": srt_name,
+                    "srt_url": "/output/" + srt_name if srt_name else "",
+                    "srt_content": open(srt_path, "r", encoding="utf-8").read() if srt_name else "",
                     "video_file": video_name
                 }
 

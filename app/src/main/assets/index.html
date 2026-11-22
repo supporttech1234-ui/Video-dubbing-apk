@@ -1178,6 +1178,21 @@ let startTime = 0;
    GALLERY
 ========================= */
 
+function nativeMediaSelected(name) {
+    selectedVideo = {
+        name: name,
+        nativeSelected: true
+    };
+
+    document.getElementById("homeScreen").style.display = "none";
+    document.getElementById("videoScreen").style.display = "block";
+
+    const nameBox = document.getElementById("selectedMovieName");
+    if (nameBox) {
+        nameBox.innerText = name;
+    }
+}
+
 function openGallery() {
 
     document
@@ -1363,22 +1378,49 @@ async function startDubbing() {
         return;
     }
 
+    /* LOCK PAGE SCROLL */
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.height = "100vh";
+
     const videoScreen =
         document.getElementById("videoScreen");
-
-    if (videoScreen) {
-        videoScreen.style.display = "block";
-        videoScreen.style.width = "100%";
-        videoScreen.style.minHeight = "100vh";
-    }
-
-    document.getElementById("completeBox").style.display = "none";
 
     const progressScreen =
         document.getElementById("progressScreen");
 
+    /* HIDE OLD VIDEO/PICKER CONTENT */
+    if (videoScreen) {
+        videoScreen.style.display = "block";
+        videoScreen.style.width = "100vw";
+        videoScreen.style.height = "100vh";
+        videoScreen.style.minHeight = "100vh";
+        videoScreen.style.overflow = "hidden";
+        videoScreen.style.position = "fixed";
+        videoScreen.style.left = "0";
+        videoScreen.style.top = "0";
+        videoScreen.style.zIndex = "9999";
+    }
+
+    /* FULL-SCREEN PROGRESS */
     if (progressScreen) {
         progressScreen.style.display = "block";
+        progressScreen.style.width = "100vw";
+        progressScreen.style.height = "100vh";
+        progressScreen.style.minHeight = "100vh";
+        progressScreen.style.overflow = "hidden";
+        progressScreen.style.position = "fixed";
+        progressScreen.style.left = "0";
+        progressScreen.style.top = "0";
+        progressScreen.style.zIndex = "10000";
+        progressScreen.style.boxSizing = "border-box";
+    }
+
+    const completeBox =
+        document.getElementById("completeBox");
+
+    if (completeBox) {
+        completeBox.style.display = "none";
     }
 
     document.getElementById("processName").innerText =
@@ -1395,7 +1437,19 @@ async function startDubbing() {
     if (window.AndroidBridge &&
         typeof AndroidBridge.uploadSelectedVideo === "function") {
 
-        AndroidBridge.uploadSelectedVideo();
+        try {
+            alert("BRIDGE CALL START");
+            AndroidBridge.uploadSelectedVideo(
+                document.getElementById("originalLanguage").value,
+                document.getElementById("dubLanguage").value,
+                "Other"
+            );
+        } catch (e) {
+            console.error("AndroidBridge call failed:", e);
+            nativeUploadError(
+                "AndroidBridge call failed: " + e
+            );
+        }
 
     } else {
         nativeUploadError(
@@ -1413,22 +1467,31 @@ function nativeUploadComplete(responseText) {
             result.status === "error" ||
             result.error
         ) {
-            throw new Error(result.error || "Dubbing failed");
+            throw new Error(
+                result.error || "Transcription failed"
+            );
         }
 
-        stopProgress();
+        console.log("TRANSCRIPTION RESULT:", result);
 
-        document.getElementById("processName").innerText = "Dubbing complete";
-        document.getElementById("progressNumber").innerText = "100%";
-        document.getElementById("progressFill").style.width = "100%";
+        window.transcriptionResult = result;
+        window.transcript = result.transcript || "";
 
-        console.log("DUBBING RESULT:", result);
+        setDubbingProgress(
+            "Transcription complete",
+            85
+        );
 
-        if (result.dubbed_video) {
-            window.dubbedVideoFile = result.dubbed_video;
-        }
+        document.getElementById("processName").innerText =
+            "Transcription complete";
 
-        document.getElementById("completeBox").style.display = "block";
+        console.log(
+            "Transcript:",
+            window.transcript
+        );
+
+        // Next actual dubbing stage will continue here.
+        // Do NOT show 100% until final dubbed video is exported.
 
     } catch (error) {
         nativeUploadError(error.message);
@@ -1462,237 +1525,6 @@ function stopProgress() {
         progressTimer = null;
     }
 }
-
-function startProgress() {
-
-    if (progressTimer) {
-
-        clearInterval(progressTimer);
-
-    }
-
-
-    let progress = 0;
-
-
-    progressTimer =
-        setInterval(function () {
-
-            progress += 2;
-
-
-            document
-                .getElementById("progressNumber")
-                .innerText =
-                progress + "%";
-
-
-            document
-                .getElementById("progressFill")
-                .style.width =
-                progress + "%";
-
-
-            updateTime(progress);
-
-
-            if (progress < 20) {
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Uploading movie...";
-
-            }
-
-            else if (progress < 40) {
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Preparing media...";
-
-            }
-
-            else if (progress < 60) {
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Transcribing speech...";
-
-            }
-
-            else if (progress < 75) {
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Translating dialogue...";
-
-            }
-
-            else if (progress < 90) {
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Generating voices...";
-
-            }
-
-            else if (progress < 100) {
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Exporting final file...";
-
-            }
-
-            else {
-
-                clearInterval(
-                    progressTimer
-                );
-
-
-                document
-                    .getElementById("processName")
-                    .innerText =
-                    "Dubbing complete";
-
-
-                document
-                    .getElementById("progressNumber")
-                    .innerText =
-                    "100%";
-
-
-                document
-                    .getElementById("progressFill")
-                    .style.width =
-                    "100%";
-
-
-                setTimeout(
-                    showComplete,
-                    500
-                );
-
-            }
-
-        }, 150);
-
-}
-
-
-/* =========================
-   TIME
-========================= */
-
-function updateTime(progress) {
-
-    const elapsed =
-        Math.floor(
-            (Date.now() - startTime) / 1000
-        );
-
-
-    const minutes =
-        Math.floor(
-            elapsed / 60
-        );
-
-
-    const seconds =
-        elapsed % 60;
-
-
-    document
-    .getElementById("elapsedTime")
-    .innerText =
-    String(minutes).padStart(2, "0") +
-    ":" +
-    String(seconds).padStart(2, "0");
-
-
-const estimatedTotal =
-    Math.max(
-        1,
-        Math.floor(
-            elapsed * 100 / Math.max(progress, 1)
-        )
-    );
-
-
-const remaining =
-    Math.max(
-        0,
-        estimatedTotal - elapsed
-    );
-
-
-const remainingMinutes =
-    Math.floor(
-        remaining / 60
-    );
-
-
-const remainingSeconds =
-    remaining % 60;
-
-
-document
-    .getElementById("remainingTime")
-    .innerText =
-    String(remainingMinutes).padStart(2, "0") +
-    ":" +
-    String(remainingSeconds).padStart(2, "0");
-
-}
-          +
-        ":"
-        +
-        String(seconds)
-            .padStart(2, "0");
-
-
-    if (progress > 0) {
-
-        const totalSeconds =
-            Math.floor(
-                elapsed * (100 / progress)
-            );
-
-        const remaining =
-            Math.max(
-                0,
-                totalSeconds - elapsed
-            );
-
-        const remainingMinutes =
-            Math.floor(
-                remaining / 60
-            );
-
-        const remainingSeconds =
-            remaining % 60;
-
-        document
-            .getElementById("remainingTime")
-            .innerText =
-            String(remainingMinutes)
-                .padStart(2, "0")
-            +
-            ":"
-            +
-            String(remainingSeconds)
-                .padStart(2, "0");
-
-    }
-
-
 
 /* =========================
    COMPLETE

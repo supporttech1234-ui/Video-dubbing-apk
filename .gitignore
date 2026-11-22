@@ -32,3 +32,7 @@ uploads/*
 whisper.cpp/
 whisper.cpp/.git/
 whisper.cpp/build/
+
+# Local backend backups
+backend.py.backup_*
+backend.py.before_*

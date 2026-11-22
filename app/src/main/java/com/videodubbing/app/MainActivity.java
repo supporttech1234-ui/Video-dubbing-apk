@@ -67,6 +67,11 @@ import org.json.JSONObject;
 import java.net.URL;
 import org.json.JSONObject;
 import java.util.Locale;
+import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.nl.translate.TranslateLanguage;
+import com.google.mlkit.nl.translate.Translation;
+import com.google.mlkit.nl.translate.Translator;
+import com.google.mlkit.nl.translate.TranslatorOptions;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
@@ -318,6 +323,7 @@ public class MainActivity extends Activity {
         setContentView(webView);
 
         webView.loadUrl("file:///android_asset/index.html");
+        testGoogleMlKitTranslation();
     }
 
     private void synthesizeTamilToFile(String text) {
@@ -1278,6 +1284,42 @@ public class MainActivity extends Activity {
                             JSONObject transcriptionJson =
                                     new JSONObject(response);
 
+                            String originalSrtUrl =
+        transcriptionJson.optString(
+                "srt_url",
+                ""
+        ).trim();
+
+String originalSrtContent =
+        transcriptionJson.optString(
+                "srt_content",
+                ""
+        );
+
+                            Log.d(
+                                    "VideoDubbing",
+                                    "ORIGINAL SRT URL: " + originalSrtUrl
+                            );
+
+                            if (!originalSrtUrl.isEmpty()) {
+                                try {
+                                    saveSrtToDownloads(
+                                            originalSrtUrl,
+                                            "Original_Subtitles.srt"
+                                    );
+                                    Log.d(
+                                            "VideoDubbing",
+                                            "ORIGINAL SRT SAVED TO DOWNLOADS"
+                                    );
+                                } catch (Exception srtSaveError) {
+                                    Log.e(
+                                            "VideoDubbing",
+                                            "ORIGINAL SRT SAVE FAILED",
+                                            srtSaveError
+                                    );
+                                }
+                            }
+
                             String transcript =
                                     transcriptionJson.optString(
                                             "transcript",
@@ -1291,17 +1333,58 @@ public class MainActivity extends Activity {
                                 segments = new JSONArray();
                             }
 
+                            if (segments.length() == 0 &&
+                                    !transcript.isEmpty()) {
+
+                                JSONObject fallbackSegment =
+                                        new JSONObject();
+
+                                fallbackSegment.put(
+                                        "id",
+                                        0
+                                );
+
+                                fallbackSegment.put(
+                                        "start",
+                                        0.0
+                                );
+
+                                fallbackSegment.put(
+                                        "end",
+                                        999999.0
+                                );
+
+                                fallbackSegment.put(
+                                        "text",
+                                        transcript
+                                );
+
+                                segments.put(
+                                        fallbackSegment
+                                );
+
+                                Log.d(
+                                        "VideoDubbing",
+                                        "TRANSCRIBE: no timestamped segments; created fallback segment"
+                                );
+                            }
+
                             if (transcript.isEmpty()) {
                                 throw new Exception(
                                         "Transcript is empty"
                                 );
                             }
 
+                            final int segmentCount =
+                                    segments.length();
+
                             runOnUiThread(() ->
                                     webView.evaluateJavascript(
                                             "setDubbingProgress(" +
                                                     JSONObjectQuote(
-                                                            "Translating dialogue..."
+                                                            "Transcription ready — " +
+                                                            segmentCount +
+                                                            " segments. Translating..."
                                                     ) +
                                                     ",87)",
                                             null
@@ -1326,7 +1409,8 @@ public class MainActivity extends Activity {
                                     originalLanguage,
                                     dubLanguage,
                                     videoFile,
-                                    role
+                                    role,
+                                    originalSrtContent
                             );
 
                         } catch (Exception parseError) {
@@ -1409,6 +1493,80 @@ public class MainActivity extends Activity {
                     "\"";
         }
 
+
+        private Uri saveSrtToDownloads(String srtUrl, String fileName)
+                throws Exception {
+
+            String fullUrl = srtUrl.startsWith("http")
+                    ? srtUrl
+                    : "https://video-dubbing-apk.onrender.com" + srtUrl;
+
+            HttpURLConnection conn = (HttpURLConnection)
+                    new URL(fullUrl).openConnection();
+
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(60000);
+
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new Exception("SRT download HTTP " + code);
+            }
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Downloads.MIME_TYPE, "application/x-subrip");
+
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                values.put(
+                        MediaStore.Downloads.RELATIVE_PATH,
+                        Environment.DIRECTORY_DOWNLOADS + "/VideoDubbing"
+                );
+                values.put(MediaStore.Downloads.IS_PENDING, 1);
+            }
+
+            Uri uri = getContentResolver().insert(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    values
+            );
+
+            if (uri == null) {
+                throw new Exception("Could not create SRT download entry");
+            }
+
+            try {
+                InputStream input = conn.getInputStream();
+                OutputStream output = getContentResolver().openOutputStream(uri);
+
+                if (output == null) {
+                    throw new Exception("Could not open SRT output stream");
+                }
+
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                }
+
+                output.flush();
+                output.close();
+                input.close();
+
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    ContentValues done = new ContentValues();
+                    done.put(MediaStore.Downloads.IS_PENDING, 0);
+                    getContentResolver().update(uri, done, null, null);
+                }
+            } catch (Exception e) {
+                getContentResolver().delete(uri, null, null);
+                throw e;
+            } finally {
+                conn.disconnect();
+            }
+
+            Log.d("VideoDubbing", "SRT SAVED: " + fileName);
+            return uri;
+        }
 
         private File downloadTtsAudio(String ttsUrl)
                 throws Exception {
@@ -1764,7 +1922,8 @@ public class MainActivity extends Activity {
                 String originalLanguage,
                 String dubLanguage,
                 String videoFile,
-                String role
+                String role,
+                String originalSrtContent
         ) {
 
             new Thread(() -> {
@@ -1803,6 +1962,23 @@ public class MainActivity extends Activity {
                     request.put(
                             "segments",
                             segments
+                    );
+
+                    request.put(
+                            "srt_content",
+                            originalSrtContent
+                    );
+
+                    Log.d(
+                            "VideoDubbing",
+                            "TRANSLATE-TTS SEGMENTS COUNT: " +
+                                    segments.length()
+                    );
+
+                    Log.d(
+                            "VideoDubbing",
+                            "TRANSLATE-TTS SEGMENTS DATA: " +
+                                    segments.toString()
                     );
 
                     String direction;
@@ -1886,6 +2062,35 @@ public class MainActivity extends Activity {
                                         "translated_text",
                                         ""
                                 );
+
+                        String translatedSrtUrl =
+                                result.optString(
+                                        "translated_srt_url", ""
+                                ).trim();
+
+                        Log.d(
+                                "VideoDubbing",
+                                "TRANSLATED SRT URL: " + translatedSrtUrl
+                        );
+
+                        if (!translatedSrtUrl.isEmpty()) {
+                            try {
+                                saveSrtToDownloads(
+                                        translatedSrtUrl,
+                                        "Translated_Subtitles.srt"
+                                );
+                                Log.d(
+                                        "VideoDubbing",
+                                        "TRANSLATED SRT SAVED TO DOWNLOADS"
+                                );
+                            } catch (Exception srtSaveError) {
+                                Log.e(
+                                        "VideoDubbing",
+                                        "TRANSLATED SRT SAVE FAILED",
+                                        srtSaveError
+                                );
+                            }
+                        }
 
                         String ttsUrl =
                                 result.optString(
@@ -2323,4 +2528,45 @@ public class MainActivity extends Activity {
             super.onBackPressed();
         }
     }
+
+    private void testGoogleMlKitTranslation() {
+        TranslatorOptions options =
+                new TranslatorOptions.Builder()
+                        .setSourceLanguage(TranslateLanguage.TAMIL)
+                        .setTargetLanguage(TranslateLanguage.ENGLISH)
+                        .build();
+
+        Translator translator =
+                Translation.getClient(options);
+
+        DownloadConditions conditions =
+                new DownloadConditions.Builder()
+                        .build();
+
+        translator.downloadModelIfNeeded(conditions)
+                .addOnSuccessListener(unused -> {
+                    translator.translate(
+                            "பேண்டா, உக்வே உன்னை டிராகன் வாரியராகத் தேர்ந்தெடுத்து தப்பு செய்யிருக்கலாம."
+                    ).addOnSuccessListener(result -> {
+                        Log.d(
+                                "VideoDubbing",
+                                "ML KIT TRANSLATION: " + result
+                        );
+                    }).addOnFailureListener(e -> {
+                        Log.e(
+                                "VideoDubbing",
+                                "ML KIT TRANSLATION FAILED",
+                                e
+                        );
+                    });
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(
+                            "VideoDubbing",
+                            "ML KIT MODEL DOWNLOAD FAILED",
+                            e
+                    );
+                });
+    }
+
 }
