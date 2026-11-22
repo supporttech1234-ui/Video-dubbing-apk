@@ -715,6 +715,14 @@ def build_timestamped_dubbed_audio(
         for i, seg in enumerate(segments):
             text = str(seg.get("text", "")).strip()
 
+            # Skip punctuation-only SRT segments.
+            if not text or not any(ch.isalnum() for ch in text):
+                print(
+                    f"DUB SKIP NON-SPEECH SEGMENT {i + 1}: {text!r}",
+                    flush=True
+                )
+                continue
+
             if not text:
                 print(
                     f"DUB SKIP EMPTY SEGMENT {i + 1}",
@@ -823,48 +831,40 @@ def build_timestamped_dubbed_audio(
                 flush=True
             )
 
-            # atempo > 1 speeds up the speech.
-            # atempo < 1 slows it down.
+            # SRT timing is the master.
+            # Fit every TTS clip inside its exact SRT window.
             tempo = raw_duration / target_duration
+            tempo = max(0.50, min(4.0, tempo))
 
-            # Keep speech natural. Do not allow extreme speed changes.
-            tempo = max(0.80, min(2.0, tempo))
+            tempo_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                raw_path,
+                "-filter:a",
+                f"atempo={tempo:.6f}",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "192k",
+                fitted_path
+            ]
 
-            if abs(tempo - 1.0) < 0.03:
-                shutil.copyfile(
-                    raw_path,
-                    fitted_path
-                )
-                fitted_duration = raw_duration
-            else:
-                tempo_cmd = [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    raw_path,
-                    "-filter:a",
-                    f"atempo={tempo:.6f}",
-                    "-c:a",
-                    "libmp3lame",
-                    "-b:a",
-                    "192k",
-                    fitted_path
-                ]
+            tempo_result = subprocess.run(
+                tempo_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
 
-                tempo_result = subprocess.run(
-                    tempo_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True
+            if tempo_result.returncode != 0:
+                raise RuntimeError(
+                    "TTS timing adjustment failed: "
+                    + tempo_result.stdout[-3000:]
                 )
 
-                if tempo_result.returncode != 0:
-                    raise RuntimeError(
-                        "TTS timing adjustment failed: "
-                        + tempo_result.stdout[-3000:]
-                    )
-
-                fitted_probe = subprocess.run(
+            fitted_duration = float(
+                subprocess.run(
                     [
                         "ffprobe",
                         "-v", "error",
@@ -876,11 +876,40 @@ def build_timestamped_dubbed_audio(
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True
+                ).stdout.strip()
+            )
+
+            # Never allow TTS to cross the SRT end time.
+            if fitted_duration > target_duration:
+                trim_path = fitted_path + ".trim.mp3"
+
+                trim_result = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        fitted_path,
+                        "-t",
+                        f"{target_duration:.3f}",
+                        "-c:a",
+                        "libmp3lame",
+                        "-b:a",
+                        "192k",
+                        trim_path
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
                 )
 
-                fitted_duration = float(
-                    fitted_probe.stdout.strip()
-                )
+                if trim_result.returncode != 0:
+                    raise RuntimeError(
+                        "TTS exact-duration trim failed: "
+                        + trim_result.stdout[-3000:]
+                    )
+
+                os.replace(trim_path, fitted_path)
+                fitted_duration = target_duration
 
             print(
                 f"DUB TTS FITTED: "
