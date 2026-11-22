@@ -1612,6 +1612,11 @@ class Handler(BaseHTTPRequestHandler):
                         groq_result, "segments", None
                     ) or []
 
+                    def groq_segment_value(seg, key, default=""):
+                        if isinstance(seg, dict):
+                            return seg.get(key, default)
+                        return getattr(seg, key, default)
+
                     print(
                         f"GROQ: received {len(groq_segments)} timestamped segments",
                         flush=True
@@ -1672,11 +1677,11 @@ class Handler(BaseHTTPRequestHandler):
 
                     with open(srt_path, "w", encoding="utf-8") as f:
                         for index, seg in enumerate(groq_segments, 1):
-                            text = str(getattr(seg, "text", "")).strip()
+                            text = str(groq_segment_value(seg, "text", "")).strip()
                             if not text:
                                 continue
-                            start = srt_time(getattr(seg, "start", 0))
-                            end = srt_time(getattr(seg, "end", 0))
+                            start = srt_time(groq_segment_value(seg, "start", 0))
+                            end = srt_time(groq_segment_value(seg, "end", 0))
                             f.write(f"{index}\n{start} --> {end}\n{text}\n\n")
 
                     print(f"ORIGINAL SRT CREATED: {srt_name}", flush=True)
@@ -1695,10 +1700,10 @@ class Handler(BaseHTTPRequestHandler):
                 if transcription_mode == "GROQ":
                     response_data["segments"] = [
                         {
-                            "id": int(getattr(seg, "id", 0)),
-                            "start": float(getattr(seg, "start", 0)),
-                            "end": float(getattr(seg, "end", 0)),
-                            "text": str(getattr(seg, "text", "")).strip()
+                            "id": int(groq_segment_value(seg, "id", 0)),
+                            "start": float(groq_segment_value(seg, "start", 0)),
+                            "end": float(groq_segment_value(seg, "end", 0)),
+                            "text": str(groq_segment_value(seg, "text", "")).strip()
                         }
                         for seg in (groq_segments or [])
                     ]

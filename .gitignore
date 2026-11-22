@@ -36,3 +36,6 @@ whisper.cpp/build/
 # Local backend backups
 backend.py.backup_*
 backend.py.before_*
+
+# Local backend backups
+backend.py.before_groq_srt_fix
