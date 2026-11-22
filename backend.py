@@ -208,7 +208,7 @@ DIALOGUES:
 """
 
     response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model="qwen/qwen3.8-27b",
         messages=[
             {
                 "role": "system",
@@ -340,6 +340,24 @@ def google_translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
     return translated
 
 
+def correct_translation_terms(text, src_lang, tgt_lang):
+    """Apply safe terminology corrections after LLM translation."""
+    if not text:
+        return text
+
+    if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
+        replacements = {
+            "the Dragon to choose you as its warrior": "choose you as the Dragon Warrior",
+            "the Dragon to choose you as its warrior.": "choose you as the Dragon Warrior.",
+            "Hey, maybe it was a mistake for the Dragon": "Panda, it may have been a mistake to choose you as the Dragon Warrior",
+        }
+
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+
+    return text
+
+
 def translate_movie_dialogue(text, src_lang="tam_Taml", tgt_lang="eng_Latn", role="Other"):
     """
     Context-aware movie dialogue translation.
@@ -390,11 +408,16 @@ def translate_movie_dialogue(text, src_lang="tam_Taml", tgt_lang="eng_Latn", rol
 
     if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
         system_prompt = (
-            "You are a professional movie dialogue translator. "
-            "Translate Tamil dialogue into natural spoken English. "
-            "Preserve meaning, emotion, attitude, character intent, "
-            "and conversational style. Do not translate literally when "
-            "a natural movie expression is better. "
+            "You are a precise Tamil to English translator. "
+            "Translate the Tamil dialogue directly into clear, natural English. "
+            "Preserve the exact meaning of the source. "
+            "Do not add, remove, exaggerate, soften, or reinterpret meaning. "
+            "Do not add words that are not present in the source. "
+            "Preserve names and important terms. "
+            "Translate the Tamil term 'டிராகன் வாரியர்' as 'Dragon Warrior'. "
+            "Translate 'பேண்டா' as 'Panda'. "
+            "Do not add words such as 'Hey' or 'Damn' unless they are explicitly present. "
+            "Use context only to resolve meaning, not to rewrite the dialogue. "
             + role_instruction +
             " Return ONLY the translation."
         )
@@ -419,7 +442,7 @@ def translate_movie_dialogue(text, src_lang="tam_Taml", tgt_lang="eng_Latn", rol
         following = segments[i + 1] if i + 1 < len(segments) else ""
 
         prompt = f"""
-Translate the CURRENT movie dialogue naturally.
+Translate ONLY the CURRENT movie dialogue.
 
 PREVIOUS DIALOGUE:
 {previous}
@@ -430,24 +453,25 @@ CURRENT DIALOGUE:
 NEXT DIALOGUE:
 {following}
 
-Use the previous and next dialogue only as context to understand:
-- who/what the speaker is referring to
-- pronouns and implied meaning
-- emotion and conversation flow
-- natural movie dialogue style
-
-Do NOT translate the previous or next dialogue.
-Translate ONLY the CURRENT DIALOGUE.
-Return ONLY the translated dialogue.
+STRICT TRANSLATION RULES:
+- Preserve the exact meaning of the CURRENT dialogue.
+- Preserve names, titles, places, objects, and important terms.
+- Do not invent information that is not present in the CURRENT dialogue.
+- Do not add words such as "damn", "really", "actually", "huge", or other emotional emphasis unless the CURRENT dialogue itself expresses that meaning.
+- Do not change the speaker's intent.
+- Use the previous and next dialogue ONLY to resolve context, pronouns, or implied references.
+- Do NOT translate the previous or next dialogue.
+- Make the result natural spoken English, but never sacrifice the original meaning for style.
+- Return ONLY the translated CURRENT dialogue.
 """
 
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="qwen/qwen3.8-27b",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.6,
+            temperature=0.1,
             max_completion_tokens=512,
             include_reasoning=False
         )
@@ -507,7 +531,7 @@ English dialogue:
         raise RuntimeError(f"Unsupported translation direction: {src_lang} -> {tgt_lang}")
 
     response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model="qwen/qwen3.8-27b",
         messages=[
             {
                 "role": "system",
@@ -518,7 +542,7 @@ English dialogue:
                 "content": prompt
             }
         ],
-        temperature=0.6,
+        temperature=0.1,
         max_completion_tokens=1024,
         include_reasoning=False
     )
@@ -667,9 +691,9 @@ def build_timestamped_dubbed_audio(
     voice
 ):
     """
-    Translate each timestamped segment, synthesize each segment,
-    delay it to its original start time, and mix all segments
-    into one dubbed audio track.
+    Translate timestamped segments, generate TTS, fit each TTS
+    clip to its original dialogue duration, then mix at the
+    original start times.
     """
 
     if not segments:
@@ -688,17 +712,7 @@ def build_timestamped_dubbed_audio(
         total = len(segments)
 
         for i, seg in enumerate(segments):
-            text = str(
-                seg.get("text", "")
-            ).strip()
-
-            print(
-                f"DUB INPUT SEGMENT {i + 1}/{total}: "
-                f"text={text!r}, "
-                f"start={seg.get('start')!r}, "
-                f"end={seg.get('end')!r}",
-                flush=True
-            )
+            text = str(seg.get("text", "")).strip()
 
             if not text:
                 print(
@@ -707,41 +721,27 @@ def build_timestamped_dubbed_audio(
                 )
                 continue
 
-            start = float(
-                seg.get("start", 0)
-            )
-
-            end = float(
-                seg.get("end", start)
-            )
+            start = float(seg.get("start", 0))
+            end = float(seg.get("end", start))
 
             if end <= start:
                 end = start + 0.5
 
+            target_duration = max(0.5, end - start)
+
             print(
                 f"DUB SEGMENT {i + 1}/{total}: "
-                f"{start:.2f}s -> {end:.2f}s",
+                f"{start:.2f}s -> {end:.2f}s "
+                f"target={target_duration:.2f}s",
                 flush=True
             )
 
-            print(
-                f"DUB SOURCE TEXT: {text!r}",
-                flush=True
-            )
-
-            try:
-                translated = translate_movie_dialogue(
-                    text,
-                    src_lang=src_lang,
-                    tgt_lang=tgt_lang,
-                    role="Other"
-                ).strip()
-            except Exception as e:
-                print(
-                    f"DUB TRANSLATION FAILED: {type(e).__name__}: {e}",
-                    flush=True
-                )
-                raise
+            translated = translate_movie_dialogue(
+                text,
+                src_lang=src_lang,
+                tgt_lang=tgt_lang,
+                role="Other"
+            ).strip()
 
             print(
                 f"DUB TRANSLATED TEXT: {translated!r}",
@@ -750,15 +750,10 @@ def build_timestamped_dubbed_audio(
 
             if not translated:
                 print(
-                    "DUB WARNING: translation returned empty text",
+                    "DUB WARNING: empty translation",
                     flush=True
                 )
                 continue
-
-            print(
-                f"DUB TTS START: voice={voice}",
-                flush=True
-            )
 
             translated_segments.append({
                 "id": int(seg.get("id", i)),
@@ -768,23 +763,133 @@ def build_timestamped_dubbed_audio(
                 "translated_text": translated
             })
 
-            tts_name = (
+            raw_name = (
+                f"raw_{i}_{uuid.uuid4().hex}.mp3"
+            )
+            fitted_name = (
                 f"segment_{i}_{uuid.uuid4().hex}.mp3"
             )
 
-            tts_path = os.path.join(
+            raw_path = os.path.join(
                 work_dir,
-                tts_name
+                raw_name
+            )
+            fitted_path = os.path.join(
+                work_dir,
+                fitted_name
+            )
+
+            print(
+                f"DUB TTS START: voice={voice}",
+                flush=True
             )
 
             synthesize_tts(
                 translated,
-                tts_path,
+                raw_path,
                 voice=voice
             )
 
+            probe_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                raw_path
+            ]
+
+            probe = subprocess.run(
+                probe_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+
+            if probe.returncode != 0:
+                raise RuntimeError(
+                    "Could not determine TTS duration"
+                )
+
+            raw_duration = float(
+                probe.stdout.strip()
+            )
+
+            print(
+                f"DUB RAW TTS: "
+                f"{raw_duration:.3f}s -> "
+                f"target {target_duration:.3f}s",
+                flush=True
+            )
+
+            # atempo > 1 speeds up the speech.
+            # atempo < 1 slows it down.
+            tempo = raw_duration / target_duration
+
+            # Keep speech natural. Do not allow extreme speed changes.
+            tempo = max(0.80, min(2.0, tempo))
+
+            if abs(tempo - 1.0) < 0.03:
+                shutil.copyfile(
+                    raw_path,
+                    fitted_path
+                )
+                fitted_duration = raw_duration
+            else:
+                tempo_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    raw_path,
+                    "-filter:a",
+                    f"atempo={tempo:.6f}",
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "192k",
+                    fitted_path
+                ]
+
+                tempo_result = subprocess.run(
+                    tempo_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+
+                if tempo_result.returncode != 0:
+                    raise RuntimeError(
+                        "TTS timing adjustment failed: "
+                        + tempo_result.stdout[-3000:]
+                    )
+
+                fitted_probe = subprocess.run(
+                    [
+                        "ffprobe",
+                        "-v", "error",
+                        "-show_entries", "format=duration",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        fitted_path
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+
+                fitted_duration = float(
+                    fitted_probe.stdout.strip()
+                )
+
+            print(
+                f"DUB TTS FITTED: "
+                f"tempo={tempo:.3f}, "
+                f"duration={fitted_duration:.3f}s",
+                flush=True
+            )
+
             segment_files.append(
-                (start, tts_path)
+                (start, fitted_path)
             )
 
         if not segment_files:
@@ -821,8 +926,7 @@ def build_timestamped_dubbed_audio(
             f"{labels}"
             f"amix=inputs={len(segment_files)}:"
             f"duration=longest:"
-            f"dropout_transition=0,"
-            f"loudnorm=I=-16:TP=-1.5:LRA=11"
+            f"dropout_transition=0"
             f"[out]"
         )
 
@@ -861,8 +965,8 @@ def build_timestamped_dubbed_audio(
 
         if result.returncode != 0:
             raise RuntimeError(
-                "Timestamp audio mix failed: " +
-                result.stdout[-3000:]
+                "Timestamp audio mix failed: "
+                + result.stdout[-3000:]
             )
 
         if (
@@ -873,18 +977,21 @@ def build_timestamped_dubbed_audio(
                 "Timestamped TTS output was not created"
             )
 
+        print(
+            f"DUB MIX OK: {output_name}",
+            flush=True
+        )
+
         return (
             output_name,
             translated_segments
         )
 
     finally:
-        import shutil
         shutil.rmtree(
             work_dir,
             ignore_errors=True
         )
-
 
 class Handler(BaseHTTPRequestHandler):
 
