@@ -683,6 +683,174 @@ def synthesize_tts(text, output_path, voice="en-US-JennyNeural"):
     return output_path
 
 
+def translate_timestamped_segments_batch(
+    segments,
+    src_lang="tam_Taml",
+    tgt_lang="eng_Latn",
+    role="Other"
+):
+    """Translate all timestamped dialogue segments in one Groq request."""
+
+    if not segments:
+        raise RuntimeError("No segments available for batch translation")
+
+    items = []
+
+    for i, seg in enumerate(segments):
+        text = str(seg.get("text", "")).strip()
+
+        if not text or not any(ch.isalnum() for ch in text):
+            continue
+
+        items.append({
+            "index": i,
+            "text": text
+        })
+
+    if not items:
+        raise RuntimeError("No usable dialogue segments for translation")
+
+    direction = f"{src_lang} -> {tgt_lang}"
+
+    if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
+        instruction = (
+            "Translate Tamil movie dialogue into natural spoken English "
+            "suitable for movie dubbing."
+        )
+    elif src_lang == "eng_Latn" and tgt_lang == "tam_Taml":
+        instruction = (
+            "Translate English movie dialogue into natural spoken Tamil "
+            "suitable for movie dubbing."
+        )
+    else:
+        instruction = (
+            "Translate the movie dialogue naturally for professional dubbing."
+        )
+
+    payload = json.dumps(items, ensure_ascii=False)
+
+    prompt = f"""You are a professional movie dialogue translator.
+
+Translation direction: {direction}
+
+{instruction}
+
+Preserve the meaning, emotion, tone, and dialogue style.
+Do not add explanations.
+Do not merge or split dialogue segments.
+Keep the exact segment order.
+
+Return ONLY valid JSON in this exact format:
+[
+  {{"index": 0, "translated_text": "..."}},
+  {{"index": 1, "translated_text": "..."}}
+]
+
+Dialogue segments:
+{payload}
+"""
+
+    print(
+        f"BATCH TRANSLATION START: {len(items)} segments",
+        flush=True
+    )
+
+    client = Groq(api_key=GROQ_API_KEY)
+
+    response = client.chat.completions.create(
+        model="qwen/qwen3.8-27b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a professional movie dialogue translator. "
+                    "Return only valid JSON."
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.1,
+        max_completion_tokens=900,
+        include_reasoning=False
+    )
+
+    raw = response.choices[0].message.content.strip()
+
+    if not raw:
+        raise RuntimeError("Batch translation returned empty result")
+
+    print("BATCH TRANSLATION RAW:", raw, flush=True)
+
+    if raw.startswith("```"):
+        raw = raw.replace("```json", "", 1)
+        raw = raw.replace("```", "")
+        raw = raw.strip()
+
+    try:
+        translated_items = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            "Batch translation returned invalid JSON: " + str(e)
+        )
+
+    if not isinstance(translated_items, list):
+        raise RuntimeError("Batch translation result is not a JSON list")
+
+    result_map = {}
+
+    for item in translated_items:
+        if not isinstance(item, dict):
+            continue
+
+        index = item.get("index")
+        translated_text = str(
+            item.get("translated_text", "")
+        ).strip()
+
+        if index is None or not translated_text:
+            continue
+
+        result_map[int(index)] = translated_text
+
+    translated_segments = []
+
+    for i, seg in enumerate(segments):
+        text = str(seg.get("text", "")).strip()
+
+        if not text or not any(ch.isalnum() for ch in text):
+            continue
+
+        translated = result_map.get(i, "").strip()
+
+        if not translated:
+            raise RuntimeError(
+                f"Missing batch translation for segment {i + 1}"
+            )
+
+        translated_segments.append({
+            "id": int(seg.get("id", i)),
+            "start": float(seg.get("start", 0)),
+            "end": float(seg.get("end", seg.get("start", 0))),
+            "text": text,
+            "translated_text": translated
+        })
+
+    if len(translated_segments) != len(items):
+        raise RuntimeError(
+            "Batch translation count mismatch"
+        )
+
+    print(
+        f"BATCH TRANSLATION OK: {len(translated_segments)} segments",
+        flush=True
+    )
+
+    return translated_segments
+
+
 def build_timestamped_dubbed_audio(
     segments,
     src_lang,
@@ -709,6 +877,21 @@ def build_timestamped_dubbed_audio(
 
     try:
         total = len(segments)
+
+        # Translate all SRT dialogue segments in ONE Groq request.
+        translated_segments = translate_timestamped_segments_batch(
+            segments,
+            src_lang=src_lang,
+            tgt_lang=tgt_lang,
+            role="Other"
+        )
+
+        translation_by_index = {
+            item["id"]: item["translated_text"]
+            for item in translated_segments
+        }
+
+        translated_segments = []
 
         for i, seg in enumerate(segments):
             text = str(seg.get("text", "")).strip()
@@ -743,11 +926,10 @@ def build_timestamped_dubbed_audio(
                 flush=True
             )
 
-            translated = translate_movie_dialogue(
-                text,
-                src_lang=src_lang,
-                tgt_lang=tgt_lang,
-                role="Other"
+            segment_id = int(seg.get("id", i))
+            translated = translation_by_index.get(
+                segment_id,
+                ""
             ).strip()
 
             print(
