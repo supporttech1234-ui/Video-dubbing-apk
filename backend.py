@@ -691,6 +691,8 @@ def translate_timestamped_segments_batch(
 ):
     """Translate all timestamped dialogue segments in one Groq request."""
 
+    from groq import Groq
+
     if not segments:
         raise RuntimeError("No segments available for batch translation")
 
