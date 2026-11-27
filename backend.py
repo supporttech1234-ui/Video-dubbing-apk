@@ -91,7 +91,16 @@ def transcribe_with_groq(audio_path):
 
     from groq import Groq
 
-    client = Groq(api_key=GROQ_API_KEY)
+    client = Groq(
+        api_key=GROQ_API_KEY,
+        timeout=600.0
+    )
+
+    print(
+        f"GROQ TRANSCRIPTION START: {os.path.basename(audio_path)} "
+        f"({os.path.getsize(audio_path)} bytes)",
+        flush=True
+    )
 
     with open(audio_path, "rb") as audio_file:
         transcription = client.audio.transcriptions.create(
@@ -100,6 +109,8 @@ def transcribe_with_groq(audio_path):
             response_format="verbose_json",
             timestamp_granularities=["segment"]
         )
+
+    print("GROQ TRANSCRIPTION COMPLETE", flush=True)
 
     return transcription
 
