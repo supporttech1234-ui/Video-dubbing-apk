@@ -112,7 +112,7 @@ def transcribe_with_groq(audio_path):
 
     print("GROQ TRANSCRIPTION COMPLETE", flush=True)
 
-    return transcription.text
+    return transcription
 
 
 def clean_transcript(text):
