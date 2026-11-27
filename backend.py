@@ -107,6 +107,7 @@ def transcribe_with_groq(audio_path):
             file=audio_file,
             model="whisper-large-v3-turbo",
             language="ta",
+            prompt="இந்த வீடியோவில் பேசப்படுவது இயல்பான தமிழ் உரையாடல். தமிழில் தெளிவாகவும் சரியான தமிழ் வார்த்தைகளாகவும் எழுதவும்.",
             response_format="verbose_json",
             timestamp_granularities=["segment"]
         )
