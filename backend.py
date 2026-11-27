@@ -106,6 +106,7 @@ def transcribe_with_groq(audio_path):
         transcription = client.audio.transcriptions.create(
             file=audio_file,
             model="whisper-large-v3-turbo",
+            language="ta",
             response_format="verbose_json",
             timestamp_granularities=["segment"]
         )
