@@ -14,6 +14,26 @@
 <title>Movie Dubbing</title>
 
 <style>
+/* SAVE DUBBED VIDEO - SINGLE ROW */
+#savedDubbedGrid {
+    width:100%;
+    display:flex !important;
+    flex-direction:column !important;
+    gap:10px !important;
+    padding:0 !important;
+    box-sizing:border-box;
+}
+
+#savedDubbedGrid > div {
+    width:100% !important;
+    min-height:108px !important;
+    display:flex !important;
+    flex-direction:row !important;
+    align-items:center !important;
+    box-sizing:border-box !important;
+}
+
+
 
 /* =========================
    BASIC
@@ -27,7 +47,7 @@
 body {
     margin: 0;
     padding: 0;
-    background: #080b10;
+    background: #05070a;
     color: white;
     font-family: Arial, sans-serif;
     min-height: 100vh;
@@ -44,7 +64,7 @@ select {
     padding: 14px;
     border: 1px solid #1d3540;
     border-radius: 12px;
-    background: #0d151b;
+    background: #090f14;
     color: white;
     font-size: 15px;
     display: flex;
@@ -72,7 +92,7 @@ select {
     border: 1px solid #1d3540;
     border-radius: 12px;
     outline: none;
-    background: #0d151b;
+    background: #090f14;
     color: white;
     font-size: 15px;
 }
@@ -98,7 +118,7 @@ select {
     padding: 13px 14px;
     border: 1px solid #1d3540;
     border-radius: 12px;
-    background: #0d151b;
+    background: #090f14;
     color: white;
     font-size: 15px;
     cursor: pointer;
@@ -135,11 +155,11 @@ select {
     box-shadow: 0 0 0 1px rgba(160, 130, 255, 0.25);
 
     border-color: #00ffff;
-    background: #10252d;
+    background: #0b1b22;
 }
 
 .language-option:hover {
-    background: #10252d;
+    background: #0b1b22;
 }
 
 button {
@@ -153,7 +173,7 @@ button {
 #homeScreen {
     min-height: 100vh;
     padding: 22px;
-    background: #080b10;
+    background: #05070a;
 }
 
 .header {
@@ -179,7 +199,7 @@ button {
     height: 44px;
     border: 1px solid #1d3540;
     border-radius: 50%;
-    background: #0d151b;
+    background: #090f14;
     color: white;
     font-size: 20px;
 }
@@ -197,7 +217,12 @@ button {
     padding: 22px;
     border: 1px solid #173642;
     border-radius: 18px;
-    background: #0d151b;
+    background: #090f14;
+}
+
+#homeScreen > .card {
+    margin-top: 18px;
+    margin-bottom: 0;
 }
 
 .card:active {
@@ -240,7 +265,7 @@ button {
     max-width: 360px;
     height: 100%;
     padding: 24px;
-    background: #0b1117;
+    background: #070c11;
     border-left: 1px solid #1c3945;
 }
 
@@ -287,7 +312,7 @@ button {
     display: none;
     min-height: 100vh;
     padding: 22px;
-    background: #080b10;
+    background: #05070a;
 }
 
 .topbar {
@@ -301,7 +326,7 @@ button {
     height: 42px;
     border: 1px solid #1d3540;
     border-radius: 50%;
-    background: #0d151b;
+    background: #090f14;
     color: white;
     font-size: 20px;
 }
@@ -336,7 +361,7 @@ button {
     padding: 15px;
     border: 1px solid #173642;
     border-radius: 14px;
-    background: #0d151b;
+    background: #090f14;
 }
 
 .info-label {
@@ -370,7 +395,7 @@ select {
     border: 1px solid #1d3540;
     border-radius: 12px;
     outline: none;
-    background: #0d151b;
+    background: #090f14;
     color: white;
     font-size: 15px;
 }
@@ -385,7 +410,7 @@ select {
     padding: 15px 10px;
     border: 1px solid #1d3540;
     border-radius: 13px;
-    background: #0d151b;
+    background: #090f14;
     color: #b8c5cc;
     text-align: center;
 }
@@ -444,7 +469,7 @@ select {
     display: none;
     min-height: 100vh;
     padding: 22px;
-    background: #080b10;
+    background: #05070a;
 }
 
 .progress-title {
@@ -489,7 +514,7 @@ select {
     padding: 18px;
     border: 1px solid #173642;
     border-radius: 15px;
-    background: #0d151b;
+    background: #090f14;
 }
 
 .process-label {
@@ -507,6 +532,46 @@ select {
     justify-content: space-between;
     margin-top: 18px;
     color: #9baab3;
+    font-size: 13px;
+}
+
+#srtEditorBox {
+    display: block;
+    margin-top: 22px;
+    padding: 16px;
+    border: 1px solid #173642;
+    border-radius: 15px;
+    background: #090f14;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.srt-editor-title {
+    color: #20d9ff;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 12px;
+}
+
+.srt-item {
+    padding: 11px 0;
+    border-bottom: 1px solid #17242b;
+}
+
+.srt-time {
+    color: #7f929d;
+    font-size: 10px;
+    margin-bottom: 5px;
+}
+
+.srt-text {
+    color: #ffffff;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.srt-empty {
+    color: #8999a3;
     font-size: 13px;
 }
 
@@ -557,15 +622,158 @@ select {
     display: none;
 }
 
+
+    .blue-card {
+        background: #07111f !important;
+        border: 1px solid #07111f !important;
+    }
+
+    .blue-card .card-title {
+        color: white !important;
+    }
+
+
+/* BLUE VIDEO PLAYER CONTROLS */
+#savedVideoPlayerScreen video {
+    width:100%;
+    max-height:70vh;
+    display:block;
+    background:#020b16;
+    border:2px solid #1976d2;
+    border-radius:10px;
+    accent-color:#1976d2;
+}
+
+#savedVideoPlayerScreen .blue-video-controls {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px;
+    margin-top:8px;
+    background:#06182b;
+    border:1px solid #1976d2;
+    border-radius:10px;
+}
+
+#savedVideoPlayerScreen .blue-video-controls button {
+    min-width:42px;
+    height:38px;
+    border:1px solid #1976d2;
+    border-radius:8px;
+    background:#0b5cab;
+    color:#fff;
+    font-size:16px;
+    font-weight:bold;
+}
+
+#savedVideoPlayerScreen .blue-video-controls button:active {
+    background:#1976d2;
+}
+
+#savedVideoPlayerScreen .blue-video-controls input[type="range"] {
+    accent-color:#1976d2;
+    flex:1;
+}
+
+</style>
+
+
+
+
+
+
+
+
+
+
+
+<style id="saved-title-top-space">
+#savedVideoPlayerScreen #savedVideoTopBar {
+    top: 20px !important;
+}
+</style>
+<style id="saved-player-final-fix">
+#savedVideoPlayerScreen.saved-video-playing #savedVideoTopBar {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+#savedVideoPlayerScreen.saved-video-playing #savedVideoBottomControls {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+#savedVideoPlayerScreen.saved-video-playing #savedCenterPlayBtn {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+#savedVideoPlayerScreen:not(.saved-video-playing) #savedVideoTopBar {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+#savedVideoPlayerScreen:not(.saved-video-playing) #savedVideoBottomControls {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+#savedVideoPlayerScreen:not(.saved-video-playing) #savedCenterPlayBtn {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+@media screen and (orientation: landscape) {
+    #savedVideoPlayerScreen {
+        width: 100vw !important;
+        height: 100vh !important;
+    }
+
+    #savedVideoPlayerScreen #savedVideoArea {
+        top: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+    }
+
+    #savedVideoPlayerScreen #savedDubbedVideoPlayer {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        object-fit: contain !important;
+    }
+
+    #savedVideoPlayerScreen #savedVideoTopBar {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 30 !important;
+    }
+
+    #savedVideoPlayerScreen #savedVideoBottomControls {
+        position: absolute !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 30 !important;
+    }
+}
+</style>
+
+<style id="final-play-hide-controls">
+</style>
+
+<style id="final-landscape-gallery-player">
 </style>
 
 </head>
 
 <body>
 
-<div style="padding:20px;margin:20px;border:1px solid #444;border-radius:12px;">
-    
-</div>
 
 <script>
 function testNative() {
@@ -599,7 +807,7 @@ function testTamilTTS() {
      HOME
 ========================= -->
 
-<div id="homeScreen">
+<div id="homeScreen" style="padding-top:40px;">
 
     <div class="header">
 
@@ -616,130 +824,8 @@ function testTamilTTS() {
         </div>
 
         <button
-            class="settings-button"
-            onclick="openSettings()">
-            ⚙
-        </button>
-
-    </div>
-
-
-    <div class="section-title">
-        Create New Dub
-    </div>
-
-
-    <div
-        class="card"
-        onclick="openGallery()">
-
-        <div class="card-icon">
-            🎬
-        </div>
-
-        <div class="card-title">
-            Gallery
-        </div>
-
-        <div class="card-text">
-            Select a movie from your device
-        </div>
-
-    </div>
-
-
-    <div
-        class="card"
-        onclick="openAudio()">
-
-        <div class="card-icon">
-            📁
-        </div>
-
-        <div class="card-title">
-            FILE
-        </div>
-
-        <div class="card-text">
-            Select audio or media files
-        </div>
-
-    </div>
-
-</div>
-
-
-<!-- =========================
-     SETTINGS
-========================= -->
-
-<div id="settingsOverlay"
-     onclick="closeSettings(event)">
-
-    <div id="settingsPanel"
-         onclick="event.stopPropagation()">
-
-        <div class="settings-header">
-
-            <div class="settings-title">
-                Settings
-            </div>
-
-            <button
-                class="close-button"
-                onclick="closeSettings()">
-                ×
-            </button>
-
-        </div>
-
-
-        <div class="setting-item">
-
-            <div class="setting-label">
-                System Language
-            </div>
-
-            <div class="setting-value">
-                English
-            </div>
-
-        </div>
-
-
-        <div class="setting-item">
-
-            <div class="setting-label">
-                Version
-            </div>
-
-            <div class="setting-value">
-                1.0
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-
-<!-- =========================
-     VIDEO PICKER
-========================= -->
-
-<input
-    id="videoPicker"
-    type="file"
-    accept="video/*"
-    onchange="videoSelected(event)"
->
-
-<input
-    id="filePicker"
-    type="file"
-    accept="video/*,audio/*"
-    style="display:none"
+      onclick="closeSavedVideoPlayer();"
+      style="display:none"
     onchange="fileSelected(event)"
 >
 
@@ -970,68 +1056,6 @@ function testTamilTTS() {
 
     </div>
 
-
-    <!-- ONLINE -->
-
-    <div class="online-box">
-
-        <div class="online-title">
-            ☁️ Online AI Dubbing
-        </div>
-
-        <div class="online-text">
-            Movie will be uploaded for online processing.
-        </div>
-
-    </div>
-
-
-    <!-- TRANSLATION MODELS -->
-    <div class="online-box" style="margin-top:12px;">
-        <div class="online-title">📦 Translation Models</div>
-
-        <div style="font-size:13px;margin:8px 0;">
-            Download once. Models are stored on the phone.
-        </div>
-
-        <button
-            type="button"
-            onclick="downloadModelSet('indic_en', INDIC_EN_MODEL_FILES, INDIC_EN_BASE_URL)"
-            style="margin-top:8px;padding:10px 16px;border-radius:10px;">
-            🇮🇳 Tamil → English Model
-        </button>
-
-        <button
-            type="button"
-            onclick="downloadModelSet('en_indic', EN_INDIC_MODEL_FILES, EN_INDIC_BASE_URL)"
-            style="margin-top:8px;padding:10px 16px;border-radius:10px;">
-            🇬🇧 English → Tamil Model
-        </button>
-
-        <progress
-            id="modelDownloadProgress"
-            value="0"
-            max="100"
-            style="width:100%;margin-top:10px;">
-        </progress>
-
-        <div
-            id="modelDownloadPercent"
-            style="font-size:12px;margin-top:4px;">
-            0%
-        </div>
-    </div>
-
-    <!-- START -->
-
-    <button
-        type="button"
-        onclick="testTamilTTS()"
-        style="margin-top:12px;padding:12px 20px;border-radius:10px;"
-    >
-        🔊 TEST TAMIL TTS
-    </button>
-
     <button
         class="start-button"
         type="button"
@@ -1115,6 +1139,23 @@ function testTamilTTS() {
             <span id="remainingTime">
                 --:--
             </span>
+        </div>
+
+    </div>
+
+
+    <!-- TRANSLATED SRT EDITOR -->
+
+    <div id="srtEditorBox">
+
+        <div class="srt-editor-title">
+            TRANSLATED SUBTITLES
+        </div>
+
+        <div id="srtEditorList">
+            <div class="srt-empty">
+                Translation will appear here...
+            </div>
         </div>
 
     </div>
@@ -1513,16 +1554,265 @@ function nativeUploadError(message) {
    PROGRESS
 ========================= */
 
+function showTranslatedSrt(srtContent) {
+
+    const list =
+        document.getElementById("srtEditorList");
+
+    if (!list) {
+        return;
+    }
+
+    list.innerHTML = "";
+
+    if (!srtContent || !srtContent.trim()) {
+        list.innerHTML =
+            '<div class="srt-empty">Translation not available.</div>';
+        return;
+    }
+
+    const blocks =
+        srtContent
+            .replace(/\\r/g, "")
+            .trim()
+            .split(/\\n\\s*\\n/);
+
+    let count = 0;
+
+    blocks.forEach(function(block) {
+
+        const lines =
+            block
+                .split("\\n")
+                .map(function(line) {
+                    return line.trim();
+                })
+                .filter(function(line) {
+                    return line !== "";
+                });
+
+        if (lines.length < 3) {
+            return;
+        }
+
+        const timing =
+            lines[1];
+
+        const text =
+            lines
+                .slice(2)
+                .join(" ");
+
+        if (!text) {
+            return;
+        }
+
+        const item =
+            document.createElement("div");
+
+        item.className = "srt-item";
+
+        const time =
+            document.createElement("div");
+
+        time.className = "srt-time";
+        time.innerText = timing;
+
+        const dialogue =
+            document.createElement("div");
+
+        dialogue.className = "srt-text";
+        dialogue.innerText = text;
+
+        item.appendChild(time);
+        item.appendChild(dialogue);
+
+        list.appendChild(item);
+
+        count++;
+    });
+
+    if (count === 0) {
+        list.innerHTML =
+            '<div class="srt-empty">No translated subtitles found.</div>';
+    }
+}
+
+function formatProgressTime(seconds) {
+    seconds = Math.max(0, Math.floor(seconds));
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+        return String(hours).padStart(2, "0") + ":" +
+               String(minutes).padStart(2, "0") + ":" +
+               String(secs).padStart(2, "0");
+    }
+
+    return String(minutes).padStart(2, "0") + ":" +
+           String(secs).padStart(2, "0");
+}
+
+function updateProgressTime(percent) {
+    if (!startTime) return;
+
+    const elapsedSeconds =
+        (Date.now() - startTime) / 1000;
+
+    const elapsedEl =
+        document.getElementById("elapsedTime");
+
+    const remainingEl =
+        document.getElementById("remainingTime");
+
+    if (elapsedEl) {
+        elapsedEl.innerText =
+            formatProgressTime(elapsedSeconds);
+    }
+
+    if (remainingEl) {
+        if (percent >= 100) {
+            remainingEl.innerText = "00:00";
+        } else if (percent > 0) {
+            const totalEstimate =
+                elapsedSeconds * (100 / percent);
+
+            const remainingSeconds =
+                Math.max(0, totalEstimate - elapsedSeconds);
+
+            remainingEl.innerText =
+                formatProgressTime(remainingSeconds);
+        } else {
+            remainingEl.innerText = "--:--";
+        }
+    }
+}
+
+function startProgressTimer() {
+    if (progressTimer) return;
+
+    startTime = Date.now();
+
+    updateProgressTime(0);
+
+    progressTimer = setInterval(function () {
+        const currentPercent =
+            parseFloat(
+                document.getElementById("progressNumber")
+                    .innerText
+                    .replace("%", "")
+            ) || 0;
+
+        updateProgressTime(currentPercent);
+    }, 1000);
+}
+
+function formatProgressTime(seconds) {
+    seconds = Math.max(0, Math.floor(seconds));
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+        return String(hours).padStart(2, "0") + ":" +
+               String(minutes).padStart(2, "0") + ":" +
+               String(secs).padStart(2, "0");
+    }
+
+    return String(minutes).padStart(2, "0") + ":" +
+           String(secs).padStart(2, "0");
+}
+
+function updateProgressTime(percent) {
+    if (!startTime) return;
+
+    const elapsedSeconds =
+        (Date.now() - startTime) / 1000;
+
+    const elapsedEl =
+        document.getElementById("elapsedTime");
+
+    const remainingEl =
+        document.getElementById("remainingTime");
+
+    if (elapsedEl) {
+        elapsedEl.innerText =
+            formatProgressTime(elapsedSeconds);
+    }
+
+    if (remainingEl) {
+        if (percent >= 100) {
+            remainingEl.innerText = "00:00";
+        } else if (percent > 0) {
+            const totalEstimate =
+                elapsedSeconds * (100 / percent);
+
+            const remainingSeconds =
+                Math.max(0, totalEstimate - elapsedSeconds);
+
+            remainingEl.innerText =
+                formatProgressTime(remainingSeconds);
+        } else {
+            remainingEl.innerText = "--:--";
+        }
+    }
+}
+
+function startProgressTimer() {
+    if (progressTimer) return;
+
+    startTime = Date.now();
+    updateProgressTime(0);
+
+    progressTimer = setInterval(function () {
+        const currentPercent =
+            parseFloat(
+                document.getElementById("progressNumber")
+                    .innerText
+                    .replace("%", "")
+            ) || 0;
+
+        updateProgressTime(currentPercent);
+    }, 1000);
+}
+
 function setDubbingProgress(message, percent) {
+    if (!startTime) {
+        startProgressTimer();
+    }
+
     document.getElementById("processName").innerText = message;
     document.getElementById("progressNumber").innerText = percent + "%";
     document.getElementById("progressFill").style.width = percent + "%";
+
+    updateProgressTime(percent);
+
+    if (percent >= 100) {
+        const remainingEl =
+            document.getElementById("remainingTime");
+
+        if (remainingEl) {
+            remainingEl.innerText = "00:00";
+        }
+    }
 }
 
 function stopProgress() {
     if (progressTimer) {
         clearInterval(progressTimer);
         progressTimer = null;
+    }
+
+    updateProgressTime(100);
+
+    const remainingEl =
+        document.getElementById("remainingTime");
+
+    if (remainingEl) {
+        remainingEl.innerText = "00:00";
     }
 }
 
@@ -1560,23 +1850,6 @@ function playDubbedMovie() {
     window.open(videoUrl, "_blank");
 }
 
-function saveDubbedMovie() {
-    if (!window.dubbedVideoFile) {
-        alert("Dubbed video is not available.");
-        return;
-    }
-
-    const videoUrl =
-        API_BASE + "/output/" + encodeURIComponent(window.dubbedVideoFile);
-
-    const link = document.createElement("a");
-    link.href = videoUrl;
-    link.download = window.dubbedVideoFile;
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
 
 function openSettings() {
 
@@ -1902,6 +2175,1180 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 
 </script>
+
+
+<!-- SAVED DUBBED VIDEOS SCREEN -->
+
+<div id="savedDubbedScreen"
+     style="
+        display:none;
+        position:fixed;
+        inset:0;
+        z-index:9999;
+        background:#05070a;
+        overflow-y:auto;
+        padding:20px;
+        box-sizing:border-box;
+     ">
+
+    <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        margin-bottom:20px;
+     ">
+
+        <div style="
+            color:white;
+            font-size:22px;
+            font-weight:700;
+        ">
+            Saved Dubbed Videos
+        </div>
+
+        <button
+            onclick="closeSavedDubbedVideos()"
+            style="
+                border:1px solid #24313b;
+                background:#0b1117;
+                color:white;
+                border-radius:10px;
+                padding:8px 14px;
+                color:white;
+                font-size:18px;
+            ">
+            ←
+        </button>
+
+    </div>
+
+    <div id="savedDubbedGrid"
+         style="
+            display:grid;
+            grid-template-columns:repeat(3,minmax(0,1fr));
+            gap:12px;
+            width:100%;
+         ">
+    </div>
+
+    <div id="savedDubbedEmpty"
+         style="
+            display:none;
+            color:#9aa7b1;
+            text-align:center;
+            padding:60px 20px;
+         ">
+        No dubbed videos saved yet.
+    </div>
+
+</div>
+
+<!-- IN-APP SAVED VIDEO PLAYER -->
+
+
+
+<!-- MX PLAYER STYLE BRIGHTNESS / VOLUME TOUCH -->
+<div id="savedBrightnessTouch"
+     style="display:none;
+       position:absolute;
+       left:0;
+       top:64px;
+       bottom:155px;
+       width:50%;
+       z-index:4;
+       touch-action:none;
+     "></div>
+
+<div id="savedVolumeTouch"
+     style="display:none;
+       position:absolute;
+       right:0;
+       top:64px;
+       bottom:155px;
+       width:50%;
+       z-index:4;
+       touch-action:none;
+     "></div>
+
+<div id="savedAVIndicator"
+     style="
+       display:none;
+       position:absolute;
+       left:50%;
+       top:50%;
+       transform:translate(-50%,-50%);
+       min-width:110px;
+       padding:14px 20px;
+       border-radius:14px;
+       background:rgba(0,0,0,.82);
+       color:white;
+       text-align:center;
+       font-size:18px;
+       font-weight:bold;
+       z-index:30;
+       pointer-events:none;
+     ">
+</div>
+
+<script>
+(function() {
+    let startY = 0;
+    let startValue = 50;
+    let active = "";
+
+    function getValue(type) {
+        if (type === "volume" && window.AndroidBridge &&
+            AndroidBridge.getVolumePercent) {
+            return Number(AndroidBridge.getVolumePercent()) || 50;
+        }
+
+        if (type === "brightness" && window.AndroidBridge &&
+            AndroidBridge.getBrightnessPercent) {
+            return Number(AndroidBridge.getBrightnessPercent()) || 50;
+        }
+
+        return 50;
+    }
+
+    function showAV(type, value) {
+        const box = document.getElementById("savedAVIndicator");
+        if (!box) return;
+
+        box.style.display = "block";
+        box.textContent =
+            (type === "volume" ? "🔊 Volume " : "☀ Brightness ") +
+            Math.round(value) + "%";
+
+        clearTimeout(window.__avTimer);
+        window.__avTimer = setTimeout(function() {
+            box.style.display = "none";
+        }, 700);
+    }
+
+    function startGesture(e, type) {
+        const t = e.touches[0];
+        startY = t.clientY;
+        active = type;
+        startValue = getValue(type);
+        e.preventDefault();
+    }
+
+    function moveGesture(e) {
+        if (!active) return;
+
+        const y = e.touches[0].clientY;
+        const delta = startY - y;
+
+        let value = startValue + (delta / 3);
+        value = Math.max(0, Math.min(100, value));
+
+        if (active === "volume") {
+            if (window.AndroidBridge && AndroidBridge.setVolumePercent) {
+                AndroidBridge.setVolumePercent(Math.round(value));
+            }
+        } else {
+            if (window.AndroidBridge && AndroidBridge.setBrightnessPercent) {
+                AndroidBridge.setBrightnessPercent(Math.round(value));
+            }
+        }
+
+        showAV(active, value);
+        e.preventDefault();
+    }
+
+    function endGesture() {
+        active = "";
+    }
+
+    const left = document.getElementById("savedBrightnessTouch");
+    const right = document.getElementById("savedVolumeTouch");
+
+    if (left) {
+        left.addEventListener("touchstart",
+            e => startGesture(e, "brightness"),
+            {passive:false});
+
+        left.addEventListener("touchmove",
+            moveGesture,
+            {passive:false});
+
+        left.addEventListener("touchend",
+            endGesture);
+    }
+
+    if (right) {
+        right.addEventListener("touchstart",
+            e => startGesture(e, "volume"),
+            {passive:false});
+
+        right.addEventListener("touchmove",
+            moveGesture,
+            {passive:false});
+
+        right.addEventListener("touchend",
+            endGesture);
+    }
+})();
+</script>
+
+<div id="savedVideoPlayerScreen"
+     style="
+       display:none;
+       position:fixed;
+       inset:0;
+       width:100vw;
+       height:100vh;
+       background:#000;
+       z-index:9999;
+       color:#fff;
+       overflow:hidden;
+     ">
+
+  <!-- TOP BAR -->
+  <div id="savedVideoTopBar"
+       style="
+         position:absolute;
+         top:0;
+         left:0;
+         right:0;
+         height:64px;
+         display:flex;
+         align-items:center;
+         padding:0 16px;
+         box-sizing:border-box;
+         background:rgba(0,0,0,.88);
+         z-index:20;
+       ">
+
+      onclick="
+        document.getElementById('savedVideoPlayerScreen').style.display='none';
+        const b=document.getElementById('savedBrightnessTouch');
+        const v=document.getElementById('savedVolumeTouch');
+        if(b)b.style.display='none';
+        if(v)v.style.display='none';
+        document.getElementById('savedDubbedScreen').style.display='block';
+      "
+      style="
+        border:0;
+        background:none;
+        color:white;
+        font-size:34px;
+        padding:0 10px 0 0;
+      ">‹</button>
+
+    <div id="savedVideoPlayerTitle"
+         style="
+           flex:1;
+           font-size:16px;
+           font-weight:600;
+           white-space:nowrap;
+           overflow:hidden;
+           text-overflow:ellipsis;
+         ">
+      Dubbed Video
+    </div>
+
+    <div style="font-size:22px;">⋮</div>
+  </div>
+
+  <!-- VIDEO AREA -->
+  <div id="savedVideoArea"
+       style="
+         position:absolute;
+         top:64px;
+         left:0;
+         right:0;
+         bottom:155px;
+         display:flex;
+         align-items:center;
+         justify-content:center;
+         background:#000;
+         overflow:hidden;
+         z-index:2;
+       ">
+
+    <video id="savedDubbedVideoPlayer"
+           playsinline
+           preload="metadata"
+           style="
+             width:100%;
+             height:100%;
+             max-width:100%;
+             max-height:100%;
+             object-fit:contain;
+             display:block;
+             background:#000;
+           ">
+    </video>
+
+    <!-- CENTER PLAY -->
+    <button id="savedCenterPlayBtn"
+            onclick="savedVideoTogglePlay()"
+            style="
+              position:absolute;
+              left:50%;
+              top:50%;
+              transform:translate(-50%,-50%);
+              width:74px;
+              height:74px;
+              border-radius:50%;
+              border:2px solid #1976d2;
+              background:rgba(0,0,0,.72);
+              color:white;
+              font-size:34px;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              z-index:10;
+            ">▶</button>
+
+  </div>
+
+  <!-- BOTTOM CONTROLS -->
+  <div id="savedVideoBottomControls"
+       class="blue-video-controls"
+       style="
+         position:absolute;
+         left:0;
+         right:0;
+         bottom:0;
+         height:155px;
+         background:rgba(5,5,5,.94);
+         padding:10px 18px 16px;
+         box-sizing:border-box;
+         z-index:20;
+       ">
+
+    <!-- TIME + SEEK -->
+    <div style="
+         display:flex;
+         align-items:center;
+         gap:10px;
+         width:100%;
+       ">
+
+      <span id="savedVideoTime"
+            style="
+              width:58px;
+              font-size:13px;
+              color:white;
+              text-align:left;
+            ">00:00 / 00:00</span>
+
+      <input id="savedVideoSeekBar"
+             type="range"
+             min="0"
+             max="100"
+             value="0"
+             oninput="savedVideoSeekTo(this.value)"
+             style="
+               flex:1;
+               accent-color:#2196f3;
+               height:4px;
+             ">
+    </div>
+
+    <!-- BUTTON ROW -->
+    <div style="
+         height:76px;
+         display:flex;
+         align-items:center;
+         justify-content:space-between;
+         width:100%;
+       ">
+
+      <!-- LOCK -->
+
+      <!-- CENTER BUTTONS -->
+      <div style="
+           display:flex;
+           align-items:center;
+           justify-content:center;
+           gap:28px;
+           flex:1;
+         ">
+
+        <button
+          onclick="savedVideoSeek(-10)"
+          style="
+            width:54px;
+            height:54px;
+            border:0;
+            background:transparent;
+            color:white;
+            font-size:30px;
+          ">⏪</button>
+
+        <button id="savedBottomPlayBtn"
+                onclick="savedVideoTogglePlay()"
+                style="
+                  width:62px;
+                  height:62px;
+                  border:0;
+                  background:transparent;
+                  color:white;
+                  font-size:40px;
+                ">▶</button>
+
+        <button
+          onclick="savedVideoSeek(10)"
+          style="
+            width:54px;
+            height:54px;
+            border:0;
+            background:transparent;
+            color:white;
+            font-size:30px;
+          ">⏩</button>
+
+      </div>
+
+      <!-- ROTATE -->
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+
+
+function savedVideoTogglePlay() {
+    const v = document.getElementById("savedDubbedVideoPlayer");
+    if (!v) return;
+
+    if (v.paused) {
+        v.play().catch(function(){});
+    } else {
+        v.pause();
+    }
+}
+
+function savedVideoSeek(seconds) {
+    const v = document.getElementById("savedDubbedVideoPlayer");
+    if (!v) return;
+
+    v.currentTime = Math.max(
+        0,
+        Math.min(v.duration || 0, v.currentTime + seconds)
+    );
+}
+
+function savedVideoSeekTo(value) {
+    const v = document.getElementById("savedDubbedVideoPlayer");
+    if (!v) return;
+
+    if (v.duration && isFinite(v.duration)) {
+        v.currentTime = (Number(value) / 100) * v.duration;
+    }
+}
+
+function savedVideoFormatTime(seconds) {
+    if (!seconds || !isFinite(seconds)) {
+        return "00:00";
+    }
+
+    seconds = Math.floor(seconds);
+
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+
+    if (h > 0) {
+        return String(h).padStart(2, "0") + ":" +
+               String(m).padStart(2, "0") + ":" +
+               String(s).padStart(2, "0");
+    }
+
+    return String(m).padStart(2, "0") + ":" +
+           String(s).padStart(2, "0");
+}
+
+function savedVideoSetControlsVisible(show) {
+    const screen = document.getElementById("savedVideoPlayerScreen");
+    const controls = document.getElementById("savedVideoBottomControls");
+    const center = document.getElementById("savedCenterPlayBtn");
+    const title = document.getElementById("savedVideoPlayerTitle");
+    const topbar = document.getElementById("savedVideoTopBar");
+
+    if (!screen) return;
+
+    if (show) {
+        screen.classList.remove("saved-video-playing");
+
+        if (controls) {
+            controls.style.display = "block";
+            controls.style.opacity = "1";
+            controls.style.pointerEvents = "auto";
+        }
+
+        if (center) {
+            center.style.display = "flex";
+            center.style.opacity = "1";
+            center.style.pointerEvents = "auto";
+        }
+
+        if (title) {
+            title.style.display = "";
+            title.style.opacity = "1";
+        }
+
+        if (topbar) {
+            topbar.style.opacity = "1";
+            topbar.style.pointerEvents = "auto";
+        }
+
+    } else {
+        screen.classList.add("saved-video-playing");
+
+        if (controls) {
+            controls.style.display = "none";
+            controls.style.opacity = "0";
+            controls.style.pointerEvents = "none";
+        }
+
+        if (center) {
+            center.style.display = "none";
+            center.style.opacity = "0";
+            center.style.pointerEvents = "none";
+        }
+
+        if (title) {
+            title.style.opacity = "0";
+            title.style.pointerEvents = "none";
+        }
+
+        if (topbar) {
+            topbar.style.opacity = "0";
+            topbar.style.pointerEvents = "none";
+        }
+    }
+}
+
+function savedVideoUpdateControls() {
+    const v = document.getElementById("savedDubbedVideoPlayer");
+    const bar = document.getElementById("savedVideoSeekBar");
+    const time = document.getElementById("savedVideoTime");
+    const bottomPlay = document.getElementById("savedBottomPlayBtn");
+
+    if (!v) return;
+
+    const current = v.currentTime || 0;
+    const duration = v.duration || 0;
+
+    if (bar) {
+        bar.value = duration > 0
+            ? (current / duration) * 100
+            : 0;
+    }
+
+    if (time) {
+        time.textContent =
+            savedVideoFormatTime(current) +
+            " / " +
+            savedVideoFormatTime(duration);
+    }
+
+    if (bottomPlay) {
+        bottomPlay.textContent = v.paused ? "▶" : "❚❚";
+    }
+
+}
+
+function initSavedVideoPlayerControls() {
+    const v = document.getElementById("savedDubbedVideoPlayer");
+
+    if (!v || v.dataset.controlsReady === "1") {
+        return;
+    }
+
+    v.dataset.controlsReady = "1";
+
+    v.addEventListener("timeupdate", savedVideoUpdateControls);
+    v.addEventListener("loadedmetadata", savedVideoUpdateControls);
+
+    v.addEventListener("play", function() {
+        savedVideoUpdateControls();
+    });
+
+    v.addEventListener("playing", function() {
+        savedVideoSetControlsVisible(false);
+        savedVideoUpdateControls();
+    });
+
+    v.addEventListener("pause", function() {
+        savedVideoSetControlsVisible(true);
+        savedVideoUpdateControls();
+    });
+
+    v.addEventListener("ended", function() {
+        savedVideoSetControlsVisible(true);
+        savedVideoUpdateControls();
+    });
+
+    /*
+     * MX Player style:
+     * tap video while playing -> show controls
+     * tap again -> hide controls
+     */
+    v.addEventListener("click", function() {
+        if (v.paused) {
+            savedVideoSetControlsVisible(true);
+            return;
+        }
+
+        const screen = document.getElementById("savedVideoPlayerScreen");
+
+        if (screen && screen.classList.contains("saved-video-touch-controls")) {
+            screen.classList.remove("saved-video-touch-controls");
+            savedVideoSetControlsVisible(false);
+        } else {
+            if (screen) {
+                screen.classList.add("saved-video-touch-controls");
+            }
+
+            savedVideoSetControlsVisible(true);
+        }
+    });
+
+    savedVideoUpdateControls();
+}
+
+function saveDubbedMovie() {
+
+    document.getElementById("homeScreen").style.display = "none";
+
+    document.getElementById("savedDubbedScreen").style.display = "block";
+
+    loadSavedDubbedVideos();
+}
+
+function closeSavedDubbedVideos() {
+
+    document.getElementById("savedDubbedScreen").style.display = "none";
+
+    document.getElementById("homeScreen").style.display = "block";
+}
+
+function closeSavedVideoMenu() {
+    const old = document.getElementById("savedVideoActionMenu");
+    if (old) {
+        old.remove();
+    }
+}
+
+function showSavedVideoMenu(event, uri, name, button) {
+    event.stopPropagation();
+
+    closeSavedVideoMenu();
+
+    const menu = document.createElement("div");
+    menu.id = "savedVideoActionMenu";
+
+    menu.style.cssText = `
+        position:fixed;
+        width:190px;
+        background:#101820;
+        border:1px solid #263744;
+        border-radius:12px;
+        box-shadow:0 8px 30px rgba(0,0,0,.65);
+        z-index:100000;
+        overflow:hidden;
+    `;
+
+    menu.innerHTML = `
+        <button
+            onclick="savedVideoRename('${encodeURIComponent(uri)}','${encodeURIComponent(name || "Dubbed Video")}');"
+            style="
+                width:100%;
+                height:48px;
+                border:0;
+                background:transparent;
+                color:white;
+                text-align:left;
+                padding:0 16px;
+                font-size:14px;
+            ">✏️ Rename</button>
+
+        <button
+            onclick="savedVideoDelete('${encodeURIComponent(uri)}');"
+            style="
+                width:100%;
+                height:48px;
+                border:0;
+                background:transparent;
+                color:#ff6b6b;
+                text-align:left;
+                padding:0 16px;
+                font-size:14px;
+            ">🗑️ Delete</button>
+
+        <button
+            onclick="savedVideoShare('${encodeURIComponent(uri)}');"
+            style="
+                width:100%;
+                height:48px;
+                border:0;
+                background:transparent;
+                color:white;
+                text-align:left;
+                padding:0 16px;
+                font-size:14px;
+            ">↗️ Share</button>
+
+        <button
+            onclick="savedVideoDownload('${encodeURIComponent(uri)}','${encodeURIComponent(name || "Dubbed Video")}');"
+            style="
+                width:100%;
+                height:48px;
+                border:0;
+                background:transparent;
+                color:white;
+                text-align:left;
+                padding:0 16px;
+                font-size:14px;
+            ">⬇️ Download</button>
+    `;
+
+    document.body.appendChild(menu);
+
+    const rect = button.getBoundingClientRect();
+
+    let left = rect.right - 190;
+    let top = rect.bottom + 6;
+
+    if (left < 8) {
+        left = 8;
+    }
+
+    if (top + 200 > window.innerHeight) {
+        top = rect.top - 206;
+    }
+
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+
+    setTimeout(function() {
+        document.addEventListener(
+            "click",
+            closeSavedVideoMenu,
+            { once:true }
+        );
+    }, 0);
+}
+
+function savedVideoRename(uriEncoded, nameEncoded) {
+    closeSavedVideoMenu();
+
+    const uri = decodeURIComponent(uriEncoded);
+    const oldName = decodeURIComponent(nameEncoded);
+
+    let baseName = oldName.replace(/\.mp4$/i, "");
+
+    const newName = prompt(
+        "Enter new video name:",
+        baseName
+    );
+
+    if (newName === null) {
+        return;
+    }
+
+    const trimmed = newName.trim();
+
+    if (!trimmed) {
+        alert("Video name cannot be empty.");
+        return;
+    }
+
+    if (window.AndroidBridge &&
+        typeof AndroidBridge.renameSavedVideo === "function") {
+
+        const ok =
+            AndroidBridge.renameSavedVideo(
+                uri,
+                trimmed
+            );
+
+        if (ok) {
+            loadSavedDubbedVideos();
+        } else {
+            alert("Rename failed.");
+        }
+    }
+}
+
+function savedVideoDelete(uriEncoded) {
+    closeSavedVideoMenu();
+
+    const uri = decodeURIComponent(uriEncoded);
+
+    if (!confirm("Delete this dubbed video?")) {
+        return;
+    }
+
+    if (window.AndroidBridge &&
+        typeof AndroidBridge.deleteSavedVideo === "function") {
+
+        const ok =
+            AndroidBridge.deleteSavedVideo(uri);
+
+        if (ok) {
+            loadSavedDubbedVideos();
+        } else {
+            alert("Delete failed.");
+        }
+    }
+}
+
+function savedVideoShare(uriEncoded) {
+    closeSavedVideoMenu();
+
+    const uri = decodeURIComponent(uriEncoded);
+
+    if (window.AndroidBridge &&
+        typeof AndroidBridge.shareSavedVideo === "function") {
+
+        AndroidBridge.shareSavedVideo(uri);
+    }
+}
+
+function savedVideoDownload(uriEncoded, nameEncoded) {
+    closeSavedVideoMenu();
+
+    const uri = decodeURIComponent(uriEncoded);
+    const name = decodeURIComponent(nameEncoded);
+
+    if (window.AndroidBridge &&
+        typeof AndroidBridge.downloadSavedVideo === "function") {
+
+        const ok =
+            AndroidBridge.downloadSavedVideo(
+                uri,
+                name
+            );
+
+        if (ok) {
+            alert("Video downloaded to Downloads/VideoDubbing.");
+        } else {
+            alert("Download failed.");
+        }
+    }
+}
+
+function loadSavedDubbedVideos() {
+
+    const grid =
+        document.getElementById("savedDubbedGrid");
+
+    const empty =
+        document.getElementById("savedDubbedEmpty");
+
+    grid.innerHTML = "";
+
+    if (
+        !window.AndroidBridge ||
+        typeof AndroidBridge.getSavedDubbedVideos !== "function"
+    ) {
+        empty.style.display = "block";
+        empty.textContent = "Saved videos are not available.";
+        return;
+    }
+
+    let videos = [];
+
+    try {
+        videos = JSON.parse(
+            AndroidBridge.getSavedDubbedVideos()
+        );
+    } catch (e) {
+        videos = [];
+    }
+
+    if (!videos.length) {
+        empty.style.display = "block";
+        return;
+    }
+
+    empty.style.display = "none";
+
+    videos.forEach(function(video, index) {
+
+        const card =
+            document.createElement("div");
+
+        card.style.cssText = `
+            width:100%;
+            min-height:108px;
+            display:flex;
+            flex-direction:row;
+            align-items:center;
+            gap:14px;
+            background:#0b1117;
+            border:1px solid #1d2a34;
+            border-radius:12px;
+            overflow:hidden;
+            padding:9px;
+            box-sizing:border-box;
+            text-align:left;
+            cursor:pointer; position:relative;
+        `;
+
+        card.innerHTML = `
+            <button type="button"
+                onclick="showSavedVideoMenu(event, '${encodeURIComponent(video.uri)}', '${encodeURIComponent(video.name || "Dubbed Video")}', this)"
+                style="
+                    position:absolute;
+                    top:7px;
+                    right:7px;
+                    width:36px;
+                    height:36px;
+                    border:0;
+                    border-radius:50%;
+                    background:rgba(0,0,0,.65);
+                    color:white;
+                    font-size:22px;
+                    z-index:100; pointer-events:auto; touch-action:manipulation;
+                ">⋮</button>
+
+            <div style="
+                width:132px;
+                min-width:132px;
+                height:76px;
+                border-radius:8px;
+                overflow:hidden;
+                background:#071321;
+                border:1px solid #1976d2;
+                flex-shrink:0;
+                position:relative;
+            ">
+                ${
+                    video.thumbnail
+                    ? `<img
+                        src="${video.thumbnail}"
+                        style="
+                            width:100%;
+                            height:100%;
+                            display:block;
+                            object-fit:cover;
+                        "
+                      >`
+                    : `<div style="
+                        width:100%;
+                        height:100%;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        color:#1976d2;
+                        font-size:28px;
+                      ">▶</div>`
+                }
+
+                <div style="
+                    position:absolute;
+                    right:5px;
+                    bottom:5px;
+                    padding:2px 5px;
+                    border-radius:4px;
+                    background:rgba(0,0,0,0.75);
+                    color:white;
+                    font-size:10px;
+                ">
+                    ${video.duration || "--:--"}
+                </div>
+            </div>
+
+            <div style="
+                flex:1;
+                min-width:0;
+                display:flex;
+                flex-direction:column;
+                justify-content:center;
+                height:76px;
+            ">
+                <div style="
+                    color:#ffffff;
+                    font-size:14px;
+                    font-weight:600;
+                    line-height:1.3;
+                    overflow:hidden;
+                    text-overflow:ellipsis;
+                    white-space:nowrap;
+                ">
+                    ${video.name || "Dubbed Video"}
+                </div>
+
+                <div style="
+                    margin-top:8px;
+                    color:#9aa7b2;
+                    font-size:11px;
+                    line-height:1.3;
+                    white-space:nowrap;
+                    overflow:hidden;
+                    text-overflow:ellipsis;
+                ">
+                    ${
+                        video.resolution
+                        ? `${video.resolution} • `
+                        : ""
+                    }Dubbed Video
+                </div>
+            </div>
+        `;
+
+        card.onclick = function() {
+
+            openSavedVideoPlayer(
+                video.uri,
+                video.name ||
+                ("Dubbed Video " + (index + 1))
+            );
+
+        };
+
+        grid.appendChild(card);
+    });
+}
+
+function openSavedVideoPlayer(uri, name) {
+
+    document.getElementById(
+        "savedDubbedScreen"
+    ).style.display = "none";
+
+    const playerScreen =
+        document.getElementById(
+            "savedVideoPlayerScreen"
+        );
+
+    const player =
+        document.getElementById(
+            "savedDubbedVideoPlayer"
+        );
+
+    document.getElementById(
+        "savedVideoPlayerTitle"
+    ).textContent = name || "Dubbed Video";
+
+    playerScreen.style.display = "block";
+
+    player.src = uri;
+
+    player.load();
+
+    initSavedVideoPlayerControls();
+
+    player.play().catch(function() {});
+
+    savedVideoUpdateControls();
+}
+
+function closeSavedVideoPlayer() {
+
+    const player =
+        document.getElementById(
+            "savedDubbedVideoPlayer"
+        );
+
+    player.pause();
+
+    player.removeAttribute("src");
+
+    player.load();
+
+    document.getElementById(
+        "savedVideoPlayerScreen"
+    ).style.display = "none";
+
+    document.getElementById(
+        "savedDubbedScreen"
+    ).style.display = "block";
+}
+
+function escapeHtml(text) {
+
+    const div =
+        document.createElement("div");
+
+    div.textContent = text;
+
+    return div.innerHTML;
+}
+
+
+    
+// MX PLAYER STYLE: tap video = show/hide controls
+(function () {
+    const v = document.getElementById("savedDubbedVideoPlayer");
+    const screen = document.getElementById("savedVideoPlayerScreen");
+
+    if (!v || !screen) return;
+
+    let hideTimer = null;
+
+    function controls() {
+        return screen.querySelectorAll(".blue-video-controls");
+    }
+
+    function showControls() {
+        controls().forEach(function (el) {
+            el.style.opacity = "1";
+            el.style.pointerEvents = "auto";
+        });
+
+        clearTimeout(hideTimer);
+
+        if (!v.paused) {
+            hideTimer = setTimeout(hideControls, 3000);
+        }
+    }
+
+    function hideControls() {
+        controls().forEach(function (el) {
+            el.style.opacity = "0";
+            el.style.pointerEvents = "none";
+        });
+    }
+
+    // Tap video
+    v.addEventListener("click", function () {
+        let hidden = false;
+
+        controls().forEach(function (el) {
+            if (el.style.opacity === "0") {
+                hidden = true;
+            }
+        });
+
+        if (hidden) {
+            showControls();
+        } else {
+            hideControls();
+        }
+    });
+
+    v.addEventListener("play", function () {
+        showControls();
+    });
+
+    v.addEventListener("pause", function () {
+        clearTimeout(hideTimer);
+        showControls();
+    });
+
+    v.addEventListener("ended", function () {
+        clearTimeout(hideTimer);
+        showControls();
+    });
+})();
+
+</script>
+
+
+
+
+
+
 
 </body>
 </html>

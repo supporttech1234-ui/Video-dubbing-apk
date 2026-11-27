@@ -6,6 +6,7 @@ import os
 import uuid
 import subprocess
 import shutil
+import small100_translator
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
@@ -48,6 +49,36 @@ def ensure_whisper_model():
     print("WHISPER MODEL: download complete", flush=True)
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+SMALL100_BASE = os.path.join(BASE_DIR, "small100")
+SMALL100_FILES = {
+    "onnx/encoder_model.onnx": "https://huggingface.co/casawolice/small100-onnx/resolve/main/onnx/encoder_model.onnx",
+    "onnx/decoder_model_merged.onnx": "https://huggingface.co/casawolice/small100-onnx/resolve/main/onnx/decoder_model_merged.onnx",
+    "tokenizer.json": "https://huggingface.co/casawolice/small100-onnx/resolve/main/tokenizer.json",
+    "lang_tokens.json": "https://huggingface.co/casawolice/small100-onnx/resolve/main/lang_tokens.json",
+}
+
+def ensure_small100_model():
+    import urllib.request
+    os.makedirs(SMALL100_BASE, exist_ok=True)
+
+    for relative_path, url in SMALL100_FILES.items():
+        target = os.path.join(SMALL100_BASE, relative_path)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+
+        if os.path.exists(target) and os.path.getsize(target) > 1000:
+            print(f"SMALL100: already available {relative_path}", flush=True)
+            continue
+
+        print(f"SMALL100: downloading {relative_path}", flush=True)
+        temp = target + ".download"
+        urllib.request.urlretrieve(url, temp)
+        os.replace(temp, target)
+        print(f"SMALL100: download complete {relative_path}", flush=True)
+
+    print("SMALL100: model ready", flush=True)
+
+ensure_small100_model()
+small100_translator.BASE = SMALL100_BASE
 
 if not GROQ_API_KEY:
     ensure_whisper_model()
@@ -361,199 +392,58 @@ def correct_translation_terms(text, src_lang, tgt_lang):
 
 def translate_movie_dialogue(text, src_lang="tam_Taml", tgt_lang="eng_Latn", role="Other"):
     """
-    Context-aware movie dialogue translation.
-
-    Each segment is translated with previous/current/next dialogue context,
-    while returning one clean translated text for the existing TTS pipeline.
+    Translate movie dialogue segments using SMaLL-100.
+    Keeps the existing segment-based TTS pipeline unchanged.
     """
     segments = split_dialogue_segments(text)
 
     if not segments:
         return ""
 
-    if len(segments) == 1:
-        return translate_text(
-            segments[0],
+    translated_segments = []
+
+    for i, current in enumerate(segments):
+        translated = translate_text(
+            current,
             src_lang=src_lang,
             tgt_lang=tgt_lang
         )
 
-    from groq import Groq
-
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not configured")
-
-    client = Groq(api_key=GROQ_API_KEY)
-
-    role = str(role or "Other").strip().lower()
-
-    if role == "hero":
-        role_instruction = (
-            "The speaker is the Hero. Use confident, natural, conversational "
-            "wording appropriate for a movie hero."
-        )
-    elif role == "heroine":
-        role_instruction = (
-            "The speaker is the Heroine. Use natural, expressive, conversational "
-            "wording appropriate for a movie heroine."
-        )
-    elif role == "villain":
-        role_instruction = (
-            "The speaker is the Villain. Use controlled, intimidating, assertive "
-            "wording when the meaning allows it. Do not change the original meaning."
-        )
-    else:
-        role_instruction = (
-            "The speaker is Other. Use natural, neutral movie dialogue wording."
-        )
-
-    if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
-        system_prompt = (
-            "You are a precise Tamil to English translator. "
-            "Translate the Tamil dialogue directly into clear, natural English. "
-            "Preserve the exact meaning of the source. "
-            "Do not add, remove, exaggerate, soften, or reinterpret meaning. "
-            "Do not add words that are not present in the source. "
-            "Preserve names and important terms. "
-            "Translate the Tamil term 'டிராகன் வாரியர்' as 'Dragon Warrior'. "
-            "Translate 'பேண்டா' as 'Panda'. "
-            "Do not add words such as 'Hey' or 'Damn' unless they are explicitly present. "
-            "Use context only to resolve meaning, not to rewrite the dialogue. "
-            + role_instruction +
-            " Return ONLY the translation."
-        )
-    elif src_lang == "eng_Latn" and tgt_lang == "tam_Taml":
-        system_prompt = (
-            "You are a professional movie dialogue translator. "
-            "Translate English dialogue into natural spoken Tamil suitable "
-            "for movie dubbing. Preserve meaning, emotion, attitude, "
-            "character intent, and conversational style. "
-            + role_instruction +
-            " Return ONLY the translation."
-        )
-    else:
-        raise RuntimeError(
-            f"Unsupported translation direction: {src_lang} -> {tgt_lang}"
-        )
-
-    translated_segments = []
-
-    for i, current in enumerate(segments):
-        previous = segments[i - 1] if i > 0 else ""
-        following = segments[i + 1] if i + 1 < len(segments) else ""
-
-        prompt = f"""
-Translate ONLY the CURRENT movie dialogue.
-
-PREVIOUS DIALOGUE:
-{previous}
-
-CURRENT DIALOGUE:
-{current}
-
-NEXT DIALOGUE:
-{following}
-
-STRICT TRANSLATION RULES:
-- Preserve the exact meaning of the CURRENT dialogue.
-- Preserve names, titles, places, objects, and important terms.
-- Do not invent information that is not present in the CURRENT dialogue.
-- Do not add words such as "damn", "really", "actually", "huge", or other emotional emphasis unless the CURRENT dialogue itself expresses that meaning.
-- Do not change the speaker's intent.
-- Use the previous and next dialogue ONLY to resolve context, pronouns, or implied references.
-- Do NOT translate the previous or next dialogue.
-- Make the result natural spoken English, but never sacrifice the original meaning for style.
-- Return ONLY the translated CURRENT dialogue.
-"""
-
-        response = client.chat.completions.create(
-            model="qwen/qwen3.8-27b",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1,
-            max_completion_tokens=512,
-            include_reasoning=False
-        )
-
-        translated = response.choices[0].message.content.strip()
-
         if not translated:
             raise RuntimeError(
-                f"Empty translation returned for segment {i + 1}"
+                f"Empty SMaLL-100 translation returned for segment {i + 1}"
             )
 
         translated_segments.append(translated)
-
         print(
-            f"SMART TRANSLATION: segment {i + 1}/{len(segments)}",
+            f"SMALL100 TRANSLATION: segment {i + 1}/{len(segments)}",
             flush=True
         )
 
     return "\n".join(translated_segments)
 
-
 def translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
     if not text.strip():
         return ""
 
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not configured")
+    lang_map = {
+        "tam_Taml": "ta",
+        "eng_Latn": "en",
+    }
 
-    from groq import Groq
-
-    client = Groq(api_key=GROQ_API_KEY)
-
-    if src_lang == "tam_Taml" and tgt_lang == "eng_Latn":
-        prompt = f"""Translate the following Tamil movie dialogue into natural spoken English.
-Keep the meaning, emotion, and dialogue style.
-Return ONLY the English translation.
-Do not explain anything.
-
-Tamil dialogue:
-{text}
-"""
-        system_prompt = "You are a professional Tamil-to-English movie dialogue translator."
-
-    elif src_lang == "eng_Latn" and tgt_lang == "tam_Taml":
-        prompt = f"""Translate the following English movie dialogue into natural spoken Tamil.
-Keep the meaning, emotion, and dialogue style.
-Use natural spoken Tamil suitable for movie dubbing.
-Return ONLY the Tamil translation.
-Do not explain anything.
-
-English dialogue:
-{text}
-"""
-        system_prompt = "You are a professional English-to-Tamil movie dialogue translator."
-
-    else:
+    if src_lang not in lang_map or tgt_lang not in lang_map:
         raise RuntimeError(f"Unsupported translation direction: {src_lang} -> {tgt_lang}")
 
-    response = client.chat.completions.create(
-        model="qwen/qwen3.8-27b",
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.1,
-        max_completion_tokens=900,
-        include_reasoning=False
-    )
-
-    translated = response.choices[0].message.content.strip()
+    translated = small100_translator.translate(
+        text,
+        lang_map[src_lang],
+        lang_map[tgt_lang]
+    ).strip()
 
     if not translated:
-        raise RuntimeError("Groq translation returned empty result")
+        raise RuntimeError("SMaLL-100 translation returned empty result")
 
-    print("GROQ TRANSLATION:")
+    print("SMaLL-100 TRANSLATION:")
     print(translated)
 
     return translated

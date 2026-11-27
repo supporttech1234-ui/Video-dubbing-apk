@@ -5,7 +5,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import android.content.Intent;
 import org.json.JSONObject;
+import android.content.ContentUris;
 import android.database.Cursor;
+import java.io.ByteArrayOutputStream;
+import android.util.Base64;
+import android.media.MediaMetadataRetriever;
+import android.media.AudioManager;
+import android.graphics.Bitmap;
 import org.json.JSONObject;
 import android.net.Uri;
 import org.json.JSONObject;
@@ -67,11 +73,6 @@ import org.json.JSONObject;
 import java.net.URL;
 import org.json.JSONObject;
 import java.util.Locale;
-import com.google.mlkit.common.model.DownloadConditions;
-import com.google.mlkit.nl.translate.TranslateLanguage;
-import com.google.mlkit.nl.translate.Translation;
-import com.google.mlkit.nl.translate.Translator;
-import com.google.mlkit.nl.translate.TranslatorOptions;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
@@ -126,6 +127,7 @@ public class MainActivity extends Activity {
     private ValueCallback<android.net.Uri[]> filePathCallback;
 
     private Uri selectedMediaUri;
+    private Uri savedDubbedVideoUri;
 
     private File getModelFile(String modelDir, String fileName) {
         File directory = new File(modelDirectory, modelDir);
@@ -323,7 +325,6 @@ public class MainActivity extends Activity {
         setContentView(webView);
 
         webView.loadUrl("file:///android_asset/index.html");
-        testGoogleMlKitTranslation();
     }
 
     private void synthesizeTamilToFile(String text) {
@@ -960,6 +961,513 @@ public class MainActivity extends Activity {
     private class NativeBridge {
 
         @JavascriptInterface
+        public String getSavedDubbedVideos() {
+            JSONArray result = new JSONArray();
+
+            Cursor cursor = null;
+
+            try {
+                Uri collection =
+                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+
+                String[] projection = {
+                        MediaStore.Video.Media._ID,
+                        MediaStore.Video.Media.DISPLAY_NAME,
+                        MediaStore.Video.Media.DATE_ADDED
+                };
+
+                String selection =
+                        MediaStore.Video.Media.RELATIVE_PATH + " LIKE ?"
+                        + " AND "
+                        + MediaStore.Video.Media.IS_PENDING + " = 0";
+
+                String[] selectionArgs = {
+                        Environment.DIRECTORY_MOVIES + "/VideoDubbing/%"
+                };
+
+                cursor = getContentResolver().query(
+                        collection,
+                        projection,
+                        selection,
+                        selectionArgs,
+                        MediaStore.Video.Media.DATE_ADDED + " DESC"
+                );
+
+                if (cursor != null) {
+                    int idIndex =
+                            cursor.getColumnIndexOrThrow(
+                                    MediaStore.Video.Media._ID
+                            );
+
+                    int nameIndex =
+                            cursor.getColumnIndexOrThrow(
+                                    MediaStore.Video.Media.DISPLAY_NAME
+                            );
+
+                    while (cursor.moveToNext()) {
+                        long id = cursor.getLong(idIndex);
+
+                        Uri videoUri =
+                                ContentUris.withAppendedId(
+                                        collection,
+                                        id
+                                );
+
+                        JSONObject item = new JSONObject();
+
+                        item.put(
+                                "uri",
+                                videoUri.toString()
+                        );
+
+                        item.put(
+                                "name",
+                                cursor.getString(nameIndex)
+                        );
+
+                        // MX Player style video details
+                        try {
+                            MediaMetadataRetriever detailsRetriever =
+                                    new MediaMetadataRetriever();
+
+                            detailsRetriever.setDataSource(
+                                    MainActivity.this,
+                                    videoUri
+                            );
+
+                            String durationValue =
+                                    detailsRetriever.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_DURATION
+                                    );
+
+                            String widthValue =
+                                    detailsRetriever.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH
+                                    );
+
+                            String heightValue =
+                                    detailsRetriever.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
+                                    );
+
+                            long durationMs = 0;
+
+                            if (durationValue != null) {
+                                durationMs = Long.parseLong(durationValue);
+                            }
+
+                            long totalSeconds =
+                                    durationMs / 1000;
+
+                            long hours =
+                                    totalSeconds / 3600;
+
+                            long minutes =
+                                    (totalSeconds % 3600) / 60;
+
+                            long seconds =
+                                    totalSeconds % 60;
+
+                            String durationText;
+
+                            if (hours > 0) {
+                                durationText = String.format(
+                                        java.util.Locale.US,
+                                        "%d:%02d:%02d",
+                                        hours,
+                                        minutes,
+                                        seconds
+                                );
+                            } else {
+                                durationText = String.format(
+                                        java.util.Locale.US,
+                                        "%02d:%02d",
+                                        minutes,
+                                        seconds
+                                );
+                            }
+
+                            item.put(
+                                    "duration",
+                                    durationText
+                            );
+
+                            if (widthValue != null &&
+                                    heightValue != null) {
+
+                                item.put(
+                                        "resolution",
+                                        widthValue + "x" + heightValue
+                                );
+
+                            } else {
+
+                                item.put(
+                                        "resolution",
+                                        ""
+                                );
+                            }
+
+                            detailsRetriever.release();
+
+                        } catch (Exception detailsError) {
+
+                            item.put("duration", "");
+                            item.put("resolution", "");
+
+                            Log.e(
+                                    "VideoDubbing",
+                                    "Video details creation failed",
+                                    detailsError
+                            );
+                        }
+
+                        // Create a small thumbnail from the actual saved video
+                        try {
+                            MediaMetadataRetriever retriever =
+                                    new MediaMetadataRetriever();
+
+                            retriever.setDataSource(
+                                    MainActivity.this,
+                                    videoUri
+                            );
+
+                            Bitmap frame =
+                                    retriever.getFrameAtTime(
+                                            1000000,
+                                            MediaMetadataRetriever
+                                                    .OPTION_CLOSEST_SYNC
+                                    );
+
+                            if (frame != null) {
+                                Bitmap thumb =
+                                        Bitmap.createScaledBitmap(
+                                                frame,
+                                                240,
+                                                135,
+                                                true
+                                        );
+
+                                ByteArrayOutputStream out =
+                                        new ByteArrayOutputStream();
+
+                                thumb.compress(
+                                        Bitmap.CompressFormat.JPEG,
+                                        75,
+                                        out
+                                );
+
+                                String base64 =
+                                        Base64.encodeToString(
+                                                out.toByteArray(),
+                                                Base64.NO_WRAP
+                                        );
+
+                                item.put(
+                                        "thumbnail",
+                                        "data:image/jpeg;base64," + base64
+                                );
+
+                                thumb.recycle();
+                                frame.recycle();
+                                out.close();
+                            }
+
+                            retriever.release();
+
+                        } catch (Exception thumbnailError) {
+
+                            Log.e(
+                                    "VideoDubbing",
+                                    "Thumbnail creation failed",
+                                    thumbnailError
+                            );
+                        }
+
+                        result.put(item);
+                    }
+                }
+
+            } catch (Exception e) {
+
+                Log.e(
+                        "VideoDubbing",
+                        "getSavedDubbedVideos failed",
+                        e
+                );
+
+            } finally {
+
+                if (cursor != null) {
+                    cursor.close();
+                }
+            }
+
+            return result.toString();
+        }
+
+
+
+        @JavascriptInterface
+        public boolean renameSavedVideo(String uriString, String newName) {
+            try {
+                if (newName == null || newName.trim().isEmpty()) {
+                    return false;
+                }
+
+                Uri uri = Uri.parse(uriString);
+                String cleanName = newName.trim();
+
+                if (!cleanName.toLowerCase(java.util.Locale.US).endsWith(".mp4")) {
+                    cleanName += ".mp4";
+                }
+
+                android.content.ContentValues values =
+                        new android.content.ContentValues();
+
+                values.put(
+                        MediaStore.Video.Media.DISPLAY_NAME,
+                        cleanName
+                );
+
+                int updated =
+                        getContentResolver().update(
+                                uri,
+                                values,
+                                null,
+                                null
+                        );
+
+                return updated > 0;
+
+            } catch (Exception e) {
+                Log.e("VideoDubbing", "Rename failed", e);
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean deleteSavedVideo(String uriString) {
+            try {
+                Uri uri = Uri.parse(uriString);
+
+                int deleted =
+                        getContentResolver().delete(
+                                uri,
+                                null,
+                                null
+                        );
+
+                return deleted > 0;
+
+            } catch (Exception e) {
+                Log.e("VideoDubbing", "Delete failed", e);
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void shareSavedVideo(String uriString) {
+            try {
+                Uri uri = Uri.parse(uriString);
+
+                android.content.Intent shareIntent =
+                        new android.content.Intent(
+                                android.content.Intent.ACTION_SEND
+                        );
+
+                shareIntent.setType("video/mp4");
+                shareIntent.putExtra(
+                        android.content.Intent.EXTRA_STREAM,
+                        uri
+                );
+
+                shareIntent.addFlags(
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+
+                startActivity(
+                        android.content.Intent.createChooser(
+                                shareIntent,
+                                "Share Dubbed Video"
+                        )
+                );
+
+            } catch (Exception e) {
+                Log.e("VideoDubbing", "Share failed", e);
+            }
+        }
+
+        @JavascriptInterface
+        public boolean downloadSavedVideo(String uriString, String fileName) {
+            android.net.Uri outputUri = null;
+
+            try {
+                Uri sourceUri = Uri.parse(uriString);
+
+                String cleanName =
+                        (fileName == null || fileName.trim().isEmpty())
+                                ? "Dubbed Video.mp4"
+                                : fileName.trim();
+
+                if (!cleanName.toLowerCase(java.util.Locale.US).endsWith(".mp4")) {
+                    cleanName += ".mp4";
+                }
+
+                android.content.ContentResolver resolver =
+                        getContentResolver();
+
+                android.content.ContentValues values =
+                        new android.content.ContentValues();
+
+                values.put(
+                        MediaStore.Video.Media.DISPLAY_NAME,
+                        cleanName
+                );
+
+                values.put(
+                        MediaStore.Video.Media.MIME_TYPE,
+                        "video/mp4"
+                );
+
+                if (android.os.Build.VERSION.SDK_INT >=
+                        android.os.Build.VERSION_CODES.Q) {
+
+                    values.put(
+                            MediaStore.Video.Media.RELATIVE_PATH,
+                            Environment.DIRECTORY_DOWNLOADS
+                                    + "/VideoDubbing/"
+                    );
+
+                    values.put(
+                            MediaStore.Video.Media.IS_PENDING,
+                            1
+                    );
+
+                    outputUri =
+                            resolver.insert(
+                                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    values
+                            );
+
+                    if (outputUri == null) {
+                        return false;
+                    }
+
+                    try (
+                        java.io.InputStream in =
+                                resolver.openInputStream(sourceUri);
+
+                        java.io.OutputStream out =
+                                resolver.openOutputStream(outputUri)
+                    ) {
+                        if (in == null || out == null) {
+                            resolver.delete(
+                                    outputUri,
+                                    null,
+                                    null
+                            );
+                            return false;
+                        }
+
+                        byte[] buffer = new byte[8192];
+                        int length;
+
+                        while ((length = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, length);
+                        }
+
+                        out.flush();
+                    }
+
+                    android.content.ContentValues done =
+                            new android.content.ContentValues();
+
+                    done.put(
+                            MediaStore.Video.Media.IS_PENDING,
+                            0
+                    );
+
+                    resolver.update(
+                            outputUri,
+                            done,
+                            null,
+                            null
+                    );
+
+                    return true;
+
+                } else {
+
+                    java.io.File downloads =
+                            android.os.Environment.getExternalStoragePublicDirectory(
+                                    android.os.Environment.DIRECTORY_DOWNLOADS
+                            );
+
+                    java.io.File folder =
+                            new java.io.File(
+                                    downloads,
+                                    "VideoDubbing"
+                            );
+
+                    if (!folder.exists() && !folder.mkdirs()) {
+                        return false;
+                    }
+
+                    java.io.File outputFile =
+                            new java.io.File(
+                                    folder,
+                                    cleanName
+                            );
+
+                    try (
+                        java.io.InputStream in =
+                                resolver.openInputStream(sourceUri);
+
+                        java.io.OutputStream out =
+                                new java.io.FileOutputStream(outputFile)
+                    ) {
+                        if (in == null) {
+                            return false;
+                        }
+
+                        byte[] buffer = new byte[8192];
+                        int length;
+
+                        while ((length = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, length);
+                        }
+
+                        out.flush();
+                    }
+
+                    return true;
+                }
+
+            } catch (Exception e) {
+
+                if (outputUri != null) {
+                    try {
+                        getContentResolver().delete(
+                                outputUri,
+                                null,
+                                null
+                        );
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                Log.e(
+                        "VideoDubbing",
+                        "Download failed",
+                        e
+                );
+
+                return false;
+            }
+        }
+
+        @JavascriptInterface
         public void openMediaPicker() {
 
             runOnUiThread(() ->
@@ -995,6 +1503,54 @@ public class MainActivity extends Activity {
         public boolean hasSelectedMedia() {
 
             return selectedMediaUri != null;
+        }
+
+        @JavascriptInterface
+        public void saveDubbedMovie() {
+
+            if (savedDubbedVideoUri == null) {
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                MainActivity.this,
+                                "Dubbed video is not available",
+                                Toast.LENGTH_SHORT
+                        ).show()
+                );
+                return;
+            }
+
+            try {
+                Intent intent = new Intent(
+                        Intent.ACTION_VIEW,
+                        savedDubbedVideoUri
+                );
+
+                intent.setDataAndType(
+                        savedDubbedVideoUri,
+                        "video/mp4"
+                );
+
+                intent.addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+
+                startActivity(intent);
+
+            } catch (Exception e) {
+                Log.e(
+                        "VideoDubbing",
+                        "Could not open saved dubbed video",
+                        e
+                );
+
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                MainActivity.this,
+                                "Cannot open saved dubbed video",
+                                Toast.LENGTH_SHORT
+                        ).show()
+                );
+            }
         }
 
         @JavascriptInterface
@@ -1568,6 +2124,48 @@ String originalSrtContent =
             return uri;
         }
 
+        private String downloadSrtContent(String srtUrl)
+                throws Exception {
+
+            String fullUrl = srtUrl.startsWith("http")
+                    ? srtUrl
+                    : "https://video-dubbing-apk.onrender.com" + srtUrl;
+
+            HttpURLConnection conn =
+                    (HttpURLConnection) new URL(fullUrl).openConnection();
+
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(60000);
+
+            int code = conn.getResponseCode();
+
+            if (code < 200 || code >= 300) {
+                throw new Exception(
+                        "SRT content download HTTP " + code
+                );
+            }
+
+            InputStream input = conn.getInputStream();
+
+            java.util.Scanner scanner =
+                    new java.util.Scanner(
+                            input,
+                            "UTF-8"
+                    ).useDelimiter("\\A");
+
+            String content =
+                    scanner.hasNext()
+                            ? scanner.next()
+                            : "";
+
+            scanner.close();
+            input.close();
+            conn.disconnect();
+
+            return content;
+        }
+
         private File downloadTtsAudio(String ttsUrl)
                 throws Exception {
 
@@ -2012,9 +2610,25 @@ String originalSrtContent =
                             role
                     );
 
+                    String requestJson = request.toString();
+
+                    Log.d(
+                            "VideoDubbing",
+                            "TRANSLATE-TTS REQUEST SIZE: " +
+                                    requestJson.length()
+                    );
+
+                    Log.d(
+                            "VideoDubbing",
+                            "TRANSLATE-TTS REQUEST PREVIEW: " +
+                                    requestJson.substring(
+                                            0,
+                                            Math.min(500, requestJson.length())
+                                    )
+                    );
+
                     byte[] body =
-                            request.toString()
-                                    .getBytes("UTF-8");
+                            requestJson.getBytes("UTF-8");
 
                     OutputStream output =
                             translationConn.getOutputStream();
@@ -2074,15 +2688,43 @@ String originalSrtContent =
                         );
 
                         if (!translatedSrtUrl.isEmpty()) {
+
                             try {
+                                String translatedSrtContent =
+                                        downloadSrtContent(
+                                                translatedSrtUrl
+                                        );
+
+                                Log.d(
+                                        "VideoDubbing",
+                                        "TRANSLATED SRT CONTENT LENGTH: " +
+                                                translatedSrtContent.length()
+                                );
+
+                                final String srtForWeb =
+                                        translatedSrtContent;
+
+                                webView.post(() ->
+                                        webView.evaluateJavascript(
+                                                "showTranslatedSrt(" +
+                                                        JSONObjectQuote(
+                                                                srtForWeb
+                                                        ) +
+                                                        ")",
+                                                null
+                                        )
+                                );
+
                                 saveSrtToDownloads(
                                         translatedSrtUrl,
                                         "Translated_Subtitles.srt"
                                 );
+
                                 Log.d(
                                         "VideoDubbing",
                                         "TRANSLATED SRT SAVED TO DOWNLOADS"
                                 );
+
                             } catch (Exception srtSaveError) {
                                 Log.e(
                                         "VideoDubbing",
@@ -2338,7 +2980,7 @@ String originalSrtContent =
                                 );
 
                         // STEP 7: Save final MP4 to Movies/VideoDubbing
-                        Uri savedVideoUri =
+                        savedDubbedVideoUri =
                                 saveDubbedVideoToDownloads(
                                         finalDubbedVideo
                                 );
@@ -2346,7 +2988,7 @@ String originalSrtContent =
                         Log.d(
                                 "VideoDubbing",
                                 "FINAL VIDEO URI: " +
-                                        savedVideoUri
+                                        savedDubbedVideoUri
                         );
 
                         webView.post(() ->
@@ -2517,56 +3159,110 @@ String originalSrtContent =
 
     @Override
     public void onBackPressed() {
-
-        if (webView != null &&
-                webView.canGoBack()) {
-
-            webView.goBack();
-
-        } else {
-
-            super.onBackPressed();
+        if (webView != null) {
+            webView.evaluateJavascript(
+                "(function(){" +
+                "var s=document.getElementById('savedVideoPlayerScreen');" +
+                "if(s && getComputedStyle(s).display !== 'none'){" +
+                "var v=document.getElementById('savedDubbedVideoPlayer');" +
+                "if(v){try{v.pause();}catch(e){}" +
+                "try{v.currentTime=0;}catch(e){}" +
+                "try{v.removeAttribute('src');}catch(e){}" +
+                "try{v.load();}catch(e){}}" +
+                "s.style.display='none';" +
+                "var saved=document.getElementById('savedDubbedScreen');" +
+                "if(saved){saved.style.display='block';}" +
+                "return;" +
+                "}" +
+                "document.querySelectorAll('video,audio').forEach(function(m){" +
+                "try{m.pause();}catch(e){}" +
+                "});" +
+                "})()",
+                null
+            );
+            return;
         }
+        super.onBackPressed();
     }
 
-    private void testGoogleMlKitTranslation() {
-        TranslatorOptions options =
-                new TranslatorOptions.Builder()
-                        .setSourceLanguage(TranslateLanguage.TAMIL)
-                        .setTargetLanguage(TranslateLanguage.ENGLISH)
-                        .build();
 
-        Translator translator =
-                Translation.getClient(options);
 
-        DownloadConditions conditions =
-                new DownloadConditions.Builder()
-                        .build();
+    @android.webkit.JavascriptInterface
+    public int getVolumePercent() {
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am == null) return 50;
 
-        translator.downloadModelIfNeeded(conditions)
-                .addOnSuccessListener(unused -> {
-                    translator.translate(
-                            "பேண்டா, உக்வே உன்னை டிராகன் வாரியராகத் தேர்ந்தெடுத்து தப்பு செய்யிருக்கலாம."
-                    ).addOnSuccessListener(result -> {
-                        Log.d(
-                                "VideoDubbing",
-                                "ML KIT TRANSLATION: " + result
-                        );
-                    }).addOnFailureListener(e -> {
-                        Log.e(
-                                "VideoDubbing",
-                                "ML KIT TRANSLATION FAILED",
-                                e
-                        );
-                    });
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(
-                            "VideoDubbing",
-                            "ML KIT MODEL DOWNLOAD FAILED",
-                            e
+        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        int current = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+
+        if (max <= 0) return 50;
+        return Math.round((current * 100f) / max);
+    }
+
+    @android.webkit.JavascriptInterface
+    public void setVolumePercent(int percent) {
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am == null) return;
+
+        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        int value = Math.max(0, Math.min(100, percent));
+        int volume = Math.round((value / 100f) * max);
+
+        am.setStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            volume,
+            0
+        );
+    }
+
+    @android.webkit.JavascriptInterface
+    public int getBrightnessPercent() {
+        android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+
+        float b = lp.screenBrightness;
+
+        if (b < 0) {
+            b = 0.5f;
+        }
+
+        return Math.round(b * 100f);
+    }
+
+    @android.webkit.JavascriptInterface
+    public void setBrightnessPercent(int percent) {
+        int value = Math.max(1, Math.min(100, percent));
+
+        android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.screenBrightness = value / 100f;
+        getWindow().setAttributes(lp);
+    }
+
+
+    @android.webkit.JavascriptInterface
+    public void rotateVideoScreen() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                int orientation =
+                        getResources().getConfiguration().orientation;
+
+                if (orientation ==
+                        android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+
+                    setRequestedOrientation(
+                            android.content.pm.ActivityInfo
+                                    .SCREEN_ORIENTATION_PORTRAIT
                     );
-                });
+
+                } else {
+
+                    setRequestedOrientation(
+                            android.content.pm.ActivityInfo
+                                    .SCREEN_ORIENTATION_LANDSCAPE
+                    );
+                }
+            }
+        });
     }
 
 }
