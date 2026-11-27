@@ -109,7 +109,6 @@ def transcribe_with_groq(audio_path):
             language="ta",
             prompt="இந்த வீடியோவில் பேசப்படுவது இயல்பான தமிழ் உரையாடல். தமிழில் தெளிவாகவும் சரியான தமிழ் வார்த்தைகளாகவும் எழுதவும்.",
             response_format="verbose_json",
-            temperature=0,
             timestamp_granularities=["segment"]
         )
 
