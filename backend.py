@@ -93,7 +93,7 @@ def transcribe_with_groq(audio_path):
 
     client = Groq(
         api_key=GROQ_API_KEY,
-        timeout=600.0
+        timeout=60.0
     )
 
     print(
@@ -112,7 +112,7 @@ def transcribe_with_groq(audio_path):
 
     print("GROQ TRANSCRIPTION COMPLETE", flush=True)
 
-    return transcription
+    return transcription.text
 
 
 def clean_transcript(text):
