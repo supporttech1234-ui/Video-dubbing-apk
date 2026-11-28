@@ -85,6 +85,106 @@ if not GROQ_API_KEY:
 
 
 
+
+def transcribe_with_groq_chunked(audio_path):
+    import subprocess
+    import tempfile
+    import math
+
+    CHUNK_SECONDS = 30
+    total_duration = 0.0
+
+    probe = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            audio_path
+        ],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+
+    total_duration = float(probe.stdout.strip())
+    print(
+        f"GROQ CHUNKED TRANSCRIPTION: {total_duration:.2f}s total, "
+        f"chunks={math.ceil(total_duration / CHUNK_SECONDS)}",
+        flush=True
+    )
+
+    all_segments = []
+    all_text = []
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        chunk_count = math.ceil(total_duration / CHUNK_SECONDS)
+
+        for i in range(chunk_count):
+            start = i * CHUNK_SECONDS
+            duration = min(CHUNK_SECONDS, total_duration - start)
+            chunk_path = os.path.join(tmpdir, f"chunk_{i:03d}.wav")
+
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-ss", str(start),
+                    "-i", audio_path,
+                    "-t", str(duration),
+                    "-ac", "1",
+                    "-ar", "16000",
+                    "-c:a", "pcm_s16le",
+                    chunk_path
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True
+            )
+
+            print(
+                f"GROQ CHUNK {i + 1}/{chunk_count} START "
+                f"(offset={start:.2f}s)",
+                flush=True
+            )
+
+            result = transcribe_with_groq(chunk_path)
+
+            chunk_text = getattr(result, "text", "") or ""
+            if chunk_text.strip():
+                all_text.append(chunk_text.strip())
+
+            for seg in (getattr(result, "segments", None) or []):
+                seg_start = float(getattr(seg, "start", 0.0) or 0.0)
+                seg_end = float(getattr(seg, "end", seg_start) or seg_start)
+                seg_text = getattr(seg, "text", "") or ""
+
+                all_segments.append({
+                    "id": len(all_segments),
+                    "start": round(seg_start + start, 3),
+                    "end": round(seg_end + start, 3),
+                    "text": seg_text.strip()
+                })
+
+            print(
+                f"GROQ CHUNK {i + 1}/{chunk_count} COMPLETE",
+                flush=True
+            )
+
+    class ChunkedTranscription:
+        pass
+
+    merged = ChunkedTranscription()
+    merged.text = " ".join(all_text).strip()
+    merged.segments = all_segments
+
+    print(
+        f"GROQ CHUNKED TRANSCRIPTION COMPLETE: "
+        f"{len(all_segments)} segments",
+        flush=True
+    )
+
+    return merged
+
+
 def transcribe_with_groq(audio_path):
     if not GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not configured")
@@ -1710,7 +1810,7 @@ class Handler(BaseHTTPRequestHandler):
                     transcription_mode = "GROQ"
                     print("TRANSCRIPTION MODE: GROQ", flush=True)
 
-                    groq_result = transcribe_with_groq(audio_path)
+                    groq_result = transcribe_with_groq_chunked(audio_path)
 
                     if not groq_result:
                         raise RuntimeError("Groq transcription returned empty result")
