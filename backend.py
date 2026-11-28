@@ -545,7 +545,9 @@ def translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
     }
 
     if src_lang not in lang_map or tgt_lang not in lang_map:
-        raise RuntimeError(f"Unsupported translation direction: {src_lang} -> {tgt_lang}")
+        raise RuntimeError(
+            f"Unsupported translation direction: {src_lang} -> {tgt_lang}"
+        )
 
     translated = small100_translator.translate(
         text,
@@ -560,6 +562,7 @@ def translate_text(text, src_lang="tam_Taml", tgt_lang="eng_Latn"):
     print(translated)
 
     return translated
+
 
 def merge_video_audio(video_path, audio_path, output_path):
     duration_cmd = [
