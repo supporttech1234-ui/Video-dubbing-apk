@@ -153,15 +153,20 @@ def transcribe_with_groq_chunked(audio_path):
                 all_text.append(chunk_text.strip())
 
             for seg in (getattr(result, "segments", None) or []):
-                seg_start = float(getattr(seg, "start", 0.0) or 0.0)
-                seg_end = float(getattr(seg, "end", seg_start) or seg_start)
-                seg_text = getattr(seg, "text", "") or ""
+                if isinstance(seg, dict):
+                    seg_start = float(seg.get("start", 0.0) or 0.0)
+                    seg_end = float(seg.get("end", seg_start) or seg_start)
+                    seg_text = seg.get("text", "") or ""
+                else:
+                    seg_start = float(getattr(seg, "start", 0.0) or 0.0)
+                    seg_end = float(getattr(seg, "end", seg_start) or seg_start)
+                    seg_text = getattr(seg, "text", "") or ""
 
                 all_segments.append({
                     "id": len(all_segments),
                     "start": round(seg_start + start, 3),
                     "end": round(seg_end + start, 3),
-                    "text": seg_text.strip()
+                    "text": str(seg_text).strip()
                 })
 
             print(
